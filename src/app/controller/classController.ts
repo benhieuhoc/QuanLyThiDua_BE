@@ -3,10 +3,14 @@ import { getAllClass, getClassById, batchCreateClass, updateClassTeacher, delete
 import { fetchAssignedClassIds } from "../service/accountService";
 import { fetchAllStudent } from "../service/studentService";
 
-// Query: ?branchid=&gradeid= (không bắt buộc)
+// Query: ?branchid=&gradeid=&archived=true|false (không bắt buộc, archived mặc định false = lớp đang học)
 export const getClasses = async (req: any, res: any) => {
     try {
-        const filter: { branchid?: number, gradeid?: number } = {};
+        const filter: { branchid?: number, gradeid?: number, archived?: boolean } = {};
+        if (req.query.archived !== undefined) {
+            if (req.query.archived !== 'true' && req.query.archived !== 'false') return sendError(res, 400, 'archived là true hoặc false');
+            filter.archived = req.query.archived === 'true';
+        }
         for (const key of ['branchid', 'gradeid'] as const) {
             if (req.query[key] !== undefined) {
                 const value = parseId(req.query[key]);

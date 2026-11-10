@@ -32,6 +32,8 @@ app.use(
       }
     },
     credentials: true,
+    // FE đọc tên file khi tải Excel (/scores/export)
+    exposedHeaders: ['Content-Disposition'],
   })
 );
 pool.connect()

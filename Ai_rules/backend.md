@@ -44,6 +44,6 @@ Mã HTTP: `200` thành công, `201` tạo mới, `400` input sai, `401` chưa đ
 ## Checklist khi thêm API
 
 1. Đọc `code-map.md` để biết luồng hiện có.
-2. Đọc `cscript/migration.sql` (xem `database.md`).
+2. Đọc phần 1 (schema) của `cscript/init.sql` (xem `database.md`).
 3. Viết service → controller → router, gắn middleware phân quyền theo `security.md`.
 4. Cập nhật `code-map.md` (route, controller, service, quyền, trạng thái).

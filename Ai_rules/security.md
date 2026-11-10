@@ -10,7 +10,7 @@
 - Mật khẩu lưu dạng hash (bcrypt, cost ≥ 10). Không bao giờ lưu, trả về hay log mật khẩu thô hoặc hash.
 - Đăng nhập sai trả `401` với thông báo chung ("Sai tài khoản hoặc mật khẩu"), không tiết lộ tài khoản có tồn tại hay không.
 - Không log token, mật khẩu, `.env` (lưu ý: `src/config/db.ts` đang log `DB_PASSWORD`, phải xóa).
-- Bảng tài khoản/vai trò phải được khai báo trong `cscript/migration.sql` trước (xem `database.md`).
+- Bảng tài khoản/vai trò phải được khai báo trong `cscript/init.sql` trước (xem `database.md`).
 
 ## Middleware
 

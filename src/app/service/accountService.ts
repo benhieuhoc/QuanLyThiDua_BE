@@ -184,10 +184,14 @@ export const replaceAccountClasses = async (id: number, classIds: number[]) => {
     if (account.kind !== 'codo') throw new HttpError(400, 'Chỉ phân công lớp chấm cho tài khoản cờ đỏ');
 
     if (classIds.length > 0) {
-        const found = await pool.query(`SELECT id FROM class WHERE id = ANY($1)`, [classIds]);
+        const found = await pool.query(`SELECT id, name, archivedyearid FROM class_view WHERE id = ANY($1)`, [classIds]);
         const foundIds = found.rows.map((c: any) => c.id);
         const missing = classIds.filter((cid) => !foundIds.includes(cid));
         if (missing.length > 0) throw new HttpError(404, 'Không tìm thấy lớp', missing.map((cid) => ({ classid: cid })));
+        const archived = found.rows.filter((c: any) => c.archivedyearid !== null);
+        if (archived.length > 0) {
+            throw new HttpError(409, 'Lớp đã ra trường (lưu trữ), không thể phân công chấm', archived.map((c: any) => ({ classid: c.id, classname: c.name })));
+        }
         if (classIds.includes(account.studentclassid)) {
             throw new HttpError(400, `Cờ đỏ không được chấm lớp của mình (${account.studentclassname})`);
         }

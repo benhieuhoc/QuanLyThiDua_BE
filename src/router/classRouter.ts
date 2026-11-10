@@ -10,12 +10,14 @@ router.use(authenticate);
 // Quyền: đọc = admin, user (cờ đỏ: students[] chỉ có ở lớp được phân công); ghi = admin
 // Mọi route qua authenticate (401 chưa đăng nhập); route ghi qua authorize('admin') (403)
 
-// GET /classes?branchid=&gradeid=
+// GET /classes?branchid=&gradeid=&archived=
 // Lấy danh sách lớp, lọc theo phân hiệu/khối (không bắt buộc), sắp xếp theo khối → phân hiệu → seq
+// archived: false (mặc định) = lớp đang học; true = lớp đã ra trường (lưu trữ khi lên lớp), mới nhất trước,
+// mỗi lớp có archivedyearid, archivedyearname (năm học ra trường). 400 archived sai
 router.get('/', getClasses);
 
 // GET /classes/:id
-// Lấy 1 lớp, kèm students[] (danh sách học sinh của lớp). 400 id sai, 404 không tìm thấy
+// Lấy 1 lớp (kể cả lớp đã lưu trữ), kèm students[] (danh sách học sinh của lớp). 400 id sai, 404 không tìm thấy
 router.get('/:id', getClass);
 
 // POST /classes
@@ -28,7 +30,7 @@ router.post('/', authorize('admin'), postClasses);
 
 // PUT /classes/:id
 // Body: { teacherid: number | null } — đổi giáo viên chủ nhiệm (phải cùng phân hiệu, chưa chủ nhiệm lớp khác), null để bỏ phân công
-// 400 dữ liệu sai, 404 không tìm thấy, 409 giáo viên đã chủ nhiệm lớp khác
+// 400 dữ liệu sai, 404 không tìm thấy, 409 giáo viên đã chủ nhiệm lớp khác / lớp đã ra trường (lưu trữ)
 router.put('/:id', authorize('admin'), putClass);
 
 // DELETE /classes/:id

@@ -56,7 +56,8 @@ export const fetchSummaryScore = async (schoolyearid: number, filter: { fromweek
     return { schoolyear: schoolYear, fromweek, toweek, scores: result.rows };
 }
 
-export type RankingPeriod = { type: 'week', value: number } | { type: 'month', value: string } | { type: 'semester', value: 1 | 2 };
+// year: cả năm học (value = null)
+export type RankingPeriod = { type: 'week', value: number } | { type: 'month', value: string } | { type: 'semester', value: 1 | 2 } | { type: 'year', value: null };
 
 // Tháng của tuần = tháng chứa thứ Năm (ngày thứ 4) của tuần, tức tháng có nhiều ngày của tuần hơn
 const weekMonthSql = `to_char(w.startdate + 3, 'YYYY-MM')`;
@@ -106,7 +107,7 @@ export const fetchRankingPeriods = async (schoolyearid: number) => {
     };
 }
 
-// Xếp hạng thi đua theo 1 tuần, 1 tháng hoặc 1 học kỳ của năm học
+// Xếp hạng thi đua theo 1 tuần, 1 tháng, 1 học kỳ hoặc cả năm học
 // Chỉ tính các tuần đã bắt đầu; rank theo tổng điểm các tuần trong phạm vi lọc (cùng điểm cùng hạng)
 export const fetchRanking = async (schoolyearid: number, period: RankingPeriod, filter: { branchid?: number, gradeid?: number } = {}) => {
     const schoolYear = await checkSchoolYearExist(schoolyearid);
@@ -116,11 +117,13 @@ export const fetchRanking = async (schoolyearid: number, period: RankingPeriod, 
     const inPeriod = allWeeks.filter((w: any) =>
         period.type === 'week' ? w.numweek === period.value
             : period.type === 'month' ? w.month === period.value
-                : w.semester === period.value
+                : period.type === 'semester' ? w.semester === period.value
+                    : true
     );
     const label = period.type === 'week' ? `Tuần ${period.value}`
         : period.type === 'month' ? monthLabel(period.value)
-            : `Học kỳ ${period.value}`;
+            : period.type === 'semester' ? `Học kỳ ${period.value}`
+                : `Năm học ${schoolYear.name}`;
     if (inPeriod.length === 0) throw new HttpError(404, `Năm học ${schoolYear.name} không có ${label.toLowerCase()}`);
 
     const counted = inPeriod.filter((w: any) => w.started);
@@ -159,6 +162,7 @@ export const fetchRanking = async (schoolyearid: number, period: RankingPeriod, 
             enddate: inPeriod[inPeriod.length - 1].enddate,
             numweeks: inPeriod.length,
             countedweeks: counted.length,
+            weekids: inPeriod.map((w: any) => w.id),
         },
         scores: result.rows,
     };
@@ -184,4 +188,21 @@ export const fetchClassScore = async (classid: number, schoolyearid: number) => 
     `;
     const result = await pool.query(query, [classid, schoolyearid]);
     return { class: cls, schoolyear: schoolYear, weeks: result.rows };
+}
+
+// Các lượt cộng/trừ của 1 tuần, gom theo lớp: Map<classid, [{ type, content, value }]>
+// Không kèm học sinh được gắn; sắp theo phần (Nề nếp trước) → thời điểm nhập
+export const fetchWeekPointDetails = async (weekid: number) => {
+    const result = await pool.query(`
+        SELECT classid, type, content, value
+        FROM point
+        WHERE weekid = $1
+        ORDER BY classid, CASE WHEN type = 'Nề nếp' THEN 0 ELSE 1 END, created_at, id
+    `, [weekid]);
+    const byClass = new Map<number, { type: string, content: string, value: number }[]>();
+    for (const row of result.rows) {
+        if (!byClass.has(row.classid)) byClass.set(row.classid, []);
+        byClass.get(row.classid)!.push({ type: row.type, content: row.content, value: row.value });
+    }
+    return byClass;
 }

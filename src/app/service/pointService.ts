@@ -1,7 +1,7 @@
 import pool from "../../config/db";
 import { HttpError } from "../utils/http";
 import { checkWeekOpen } from "./weekService";
-import { getClassById } from "./classService";
+import { getClassById, assertClassActive } from "./classService";
 import { checkListStudentExist } from "./studentService";
 import { Actor, canScoreClass } from "./accountService";
 
@@ -96,6 +96,7 @@ export const createPoint = async (actor: Actor, weekid: number, classid: number,
     const cls = await getClassById(classid);
     if (!cls) throw new HttpError(404, 'Không tìm thấy lớp');
     if (!(await canScoreClass(actor, cls))) throw new HttpError(403, FORBIDDEN_CLASS);
+    assertClassActive(cls);
     await checkWeekOpen(weekid);
     await validateStudents(studentIds, classid);
 

@@ -18,6 +18,14 @@ export const sendError = (res: any, status: number, message: string, errors?: an
     return res.status(status).json({ success: false, message, ...(errors ? { errors } : {}) });
 }
 
+// Trả file tải về (vd .xlsx); filename chỉ nên chứa ASCII, filename* để trình duyệt nhận đúng UTF-8
+export const sendFile = (res: any, buffer: Buffer, filename: string, contentType: string) => {
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader('Content-Length', buffer.length);
+    return res.status(200).send(buffer);
+}
+
 // Map lỗi nghiệp vụ và lỗi Postgres sang response, không trả lỗi SQL thô cho client
 export const handleError = (res: any, err: any) => {
     if (err instanceof HttpError) {

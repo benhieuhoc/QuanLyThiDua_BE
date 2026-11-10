@@ -1,4 +1,5 @@
 import { sendSuccess, sendError, handleError, parseId, parseIntInRange, parseDate } from "../utils/http";
+import { Grade6Input } from "../service/classService";
 import { fetchAllSchoolYear, checkSchoolYearExist, createSchoolYear, updateSchoolYear, deleteSchoolYear } from "../service/schoolYearService";
 import { fetchAllWeek } from "../service/weekService";
 
@@ -29,7 +30,24 @@ export const getSchoolYear = async (req: any, res: any) => {
     }
 }
 
-// Body: { name, startdate, numweeks, conduct_base?, study_base?, semester2_week? }
+// grade6: [{ branchid, count: 0-30 }], mỗi phân hiệu tối đa 1 phần tử; undefined = không truyền
+const parseGrade6 = (value: any, errors: any[]): Grade6Input[] | undefined => {
+    if (value === undefined || value === null) return undefined;
+    const message = 'grade6 là mảng { branchid, count: 0-30 }, mỗi phân hiệu 1 lần';
+    if (!Array.isArray(value)) {
+        errors.push({ field: 'grade6', message });
+        return undefined;
+    }
+    const items = value.map((item: any) => ({ branchid: parseId(item?.branchid), count: parseIntInRange(item?.count, 0, 30) }));
+    const branchIds = items.map((item) => item.branchid);
+    if (items.some((item) => !item.branchid || item.count === null) || new Set(branchIds).size !== branchIds.length) {
+        errors.push({ field: 'grade6', message });
+        return undefined;
+    }
+    return items as Grade6Input[];
+}
+
+// Body: { name, startdate, numweeks, conduct_base?, study_base?, semester2_week?, grade6? }
 export const postSchoolYear = async (req: any, res: any) => {
     try {
         const body = req.body ?? {};
@@ -45,9 +63,10 @@ export const postSchoolYear = async (req: any, res: any) => {
         if (studyBase === null) errors.push({ field: 'study_base', message: 'study_base là số nguyên 0-1000' });
         const semester2Week = body.semester2_week === undefined || body.semester2_week === null ? undefined : parseIntInRange(body.semester2_week, 2, 60);
         if (semester2Week === null) errors.push({ field: 'semester2_week', message: 'semester2_week là số nguyên 2-60' });
+        const grade6 = parseGrade6(body.grade6, errors);
         if (errors.length > 0) return sendError(res, 400, 'Dữ liệu không hợp lệ', errors);
 
-        const schoolYear = await createSchoolYear(body.name.trim(), startdate!, numweeks!, conductBase!, studyBase!, semester2Week ?? undefined);
+        const schoolYear = await createSchoolYear(body.name.trim(), startdate!, numweeks!, conductBase!, studyBase!, semester2Week ?? undefined, grade6);
         return sendSuccess(res, schoolYear, 'Tạo năm học thành công', 201);
     } catch (err) {
         return handleError(res, err);

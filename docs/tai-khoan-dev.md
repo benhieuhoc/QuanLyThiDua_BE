@@ -29,7 +29,7 @@ Chi tiết quyền: [Ai_rules/security.md](../Ai_rules/security.md).
 
 - Tên đăng nhập không phân biệt hoa thường.
 - Mật khẩu `1` được đặt thẳng trong DB. Mật khẩu tạo hoặc đổi qua API / giao diện (tạo tài khoản, đặt lại, đổi mật khẩu) phải **từ 6 ký tự**.
-- Tài khoản dev được tạo bằng [cscript/seed.sql](../cscript/seed.sql), chạy sau `cscript/migration.sql`. Seed gắn `gvcn.*` với GVCN **hiện tại** của lớp và `codo.*` với học sinh có id nhỏ nhất của lớp. Nếu dữ liệu lớp / học sinh thay đổi rồi seed lại trên DB mới, người dùng trong bảng trên có thể khác (tên đăng nhập và mật khẩu giữ nguyên).
+- Từ 2026-11-09, [cscript/init.sql](../cscript/init.sql) chỉ tạo tài khoản `admin` (mật khẩu `1`). Các tài khoản `gvcn.*`, `codo.*` trong bảng trên chỉ còn trên DB dev cũ; DB mới tạo lại qua trang **Tài khoản** (`POST /accounts`, mật khẩu từ 6 ký tự).
 - Tài khoản tạo thêm qua trang **Tài khoản** không tự cập nhật vào file này; nhớ ghi thêm nếu muốn tra cứu.
 
 ## Xem lại / đặt lại mật khẩu
@@ -48,7 +48,7 @@ LEFT JOIN class_view sc ON sc.id = s.classid
 ORDER BY a.role, a.username;
 ```
 
-Đặt lại mật khẩu mọi tài khoản về `1` (cần extension `pgcrypto`, đã có sẵn sau khi chạy seed):
+Đặt lại mật khẩu mọi tài khoản về `1` (cần extension `pgcrypto`, đã có sẵn sau khi chạy `init.sql`):
 
 ```sql
 UPDATE account SET password = crypt('1', gen_salt('bf', 10)), updated_at = NOW();

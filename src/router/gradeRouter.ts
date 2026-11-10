@@ -6,7 +6,7 @@ const router = express.Router();
 router.use(authenticate);
 
 // Khối — mount tại /grades
-// Dữ liệu cố định khởi tạo trong migration (6–9), chỉ có API đọc
+// Dữ liệu cố định khởi tạo trong cscript/init.sql (6–9), chỉ có API đọc
 // Quyền: admin, user (chỉ đọc)
 // Mọi route qua authenticate (401 chưa đăng nhập)
 

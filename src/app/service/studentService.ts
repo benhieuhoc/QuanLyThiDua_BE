@@ -1,6 +1,6 @@
 import pool from "../../config/db";
 import { HttpError } from "../utils/http";
-import { getClassById } from "./classService";
+import { getClassById, assertClassActive } from "./classService";
 
 export const GENDERS = ['Nam', 'Nữ'];
 
@@ -8,6 +8,7 @@ export type StudentInput = { code: string, name: string, gender: string | null, 
 
 // Kèm tên lớp (classname), sắp xếp theo lớp → id
 // classIds: chỉ lấy học sinh thuộc các lớp này (dùng giới hạn cho cờ đỏ)
+// Không truyền classid thì bỏ học sinh của lớp đã ra trường (lưu trữ); truyền classid lớp lưu trữ vẫn xem được
 export const fetchAllStudent = async (filter: { classid?: number, branchid?: number, gradeid?: number, classIds?: number[] } = {}) => {
     const query = `
         SELECT s.*, cv.name AS classname, cv.gradeid, cv.branchid
@@ -17,6 +18,7 @@ export const fetchAllStudent = async (filter: { classid?: number, branchid?: num
           AND ($2::int IS NULL OR cv.branchid = $2)
           AND ($3::int IS NULL OR cv.gradeid = $3)
           AND ($4::int[] IS NULL OR s.classid = ANY($4))
+          AND ($1::int IS NOT NULL OR cv.archivedyearid IS NULL)
         ORDER BY cv.numgrade, cv.branchcode, cv.seq, s.id
     `;
     const result = await pool.query(query, [filter.classid ?? null, filter.branchid ?? null, filter.gradeid ?? null, filter.classIds ?? null]);
@@ -42,7 +44,9 @@ export const checkListStudentExist = async (ids: number[]) => {
 // Thêm hàng loạt học sinh vào 1 lớp
 export const createStudent = async (classid: number, students: StudentInput[]) => {
     if (students.length === 0) return [];
-    if (!(await getClassById(classid))) throw new HttpError(404, 'Không tìm thấy lớp');
+    const cls = await getClassById(classid);
+    if (!cls) throw new HttpError(404, 'Không tìm thấy lớp');
+    assertClassActive(cls);
 
     const placeholder: string[] = [];
     const values: any[] = [classid];
@@ -67,8 +71,10 @@ export const createStudent = async (classid: number, students: StudentInput[]) =
 export const updateStudent = async (id: number, data: Partial<StudentInput> & { classid?: number }) => {
     const student = await checkStudentExist(id);
     if (!student) throw new HttpError(404, 'Không tìm thấy học sinh');
-    if (data.classid !== undefined && data.classid !== student.classid && !(await getClassById(data.classid))) {
-        throw new HttpError(404, 'Không tìm thấy lớp');
+    if (data.classid !== undefined && data.classid !== student.classid) {
+        const cls = await getClassById(data.classid);
+        if (!cls) throw new HttpError(404, 'Không tìm thấy lớp');
+        assertClassActive(cls);
     }
 
     const query = `

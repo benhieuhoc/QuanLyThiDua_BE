@@ -1,5 +1,6 @@
 import pool from "../../config/db";
 import { HttpError } from "../utils/http";
+import { promoteClasses, Grade6Input } from "./classService";
 
 // Kèm số tuần, ngày kết thúc (ngày cuối của tuần cuối) và tuần bắt đầu học kỳ 2
 // semester2_week chưa đặt thì mặc định CEIL(numweeks / 2) + 1 (HK1 nhiều hơn hoặc bằng HK2)
@@ -64,13 +65,39 @@ const checkSemester2Week = (semester2Week: number, numweeks: number) => {
     }
 }
 
-export const createSchoolYear = async (name: string, startdate: string, numweeks: number, conductBase: number, studyBase: number, semester2Week?: number) => {
+// Năm học mới nhất (theo startdate) kèm ngày kết thúc, đã kết thúc chưa và đã lên lớp chưa (có ảnh chụp class_year)
+const fetchLatestSchoolYear = async (client: any) => {
+    const query = `
+        SELECT sy.id, sy.name, MAX(w.enddate) AS enddate,
+               (MAX(w.enddate) IS NULL OR MAX(w.enddate) < CURRENT_DATE) AS ended,
+               EXISTS (SELECT 1 FROM class_year cy WHERE cy.schoolyearid = sy.id) AS promoted
+        FROM school_year sy
+        LEFT JOIN week w ON w.schoolyearid = sy.id
+        GROUP BY sy.id
+        ORDER BY sy.startdate DESC
+        LIMIT 1
+    `;
+    return (await client.query(query)).rows[0];
+}
+
+// Chỉ tạo năm học mới khi năm học mới nhất đã kết thúc (ngày cuối tuần cuối < hôm nay)
+// và năm mới bắt đầu sau năm cũ. Năm cũ chưa lên lớp thì lên lớp trong cùng transaction (promoteClasses):
+// lưu trữ khối 9, tăng khối 6-8, tạo lớp khối 6 mới (grade6 = số lớp mỗi phân hiệu, không truyền = như năm cũ)
+// Năm học đầu tiên (chưa có năm cũ) không lên lớp, promotion = null
+export const createSchoolYear = async (name: string, startdate: string, numweeks: number, conductBase: number, studyBase: number, semester2Week?: number, grade6?: Grade6Input[]) => {
     if (semester2Week !== undefined) checkSemester2Week(semester2Week, numweeks);
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        // Khóa bảng để 2 request đồng thời không tạo năm học chồng thời gian
+        // Khóa bảng để 2 request đồng thời không tạo năm học chồng thời gian / lên lớp 2 lần
         await client.query('LOCK TABLE school_year IN SHARE ROW EXCLUSIVE MODE');
+        const previous = await fetchLatestSchoolYear(client);
+        if (previous && !previous.ended) {
+            throw new HttpError(409, `Năm học ${previous.name} chưa kết thúc (kết thúc ngày ${previous.enddate}), chưa thể thêm năm học mới`);
+        }
+        if (previous?.enddate && startdate <= previous.enddate) {
+            throw new HttpError(409, `Năm học mới phải bắt đầu sau ngày kết thúc năm học ${previous.name} (${previous.enddate})`);
+        }
         await checkOverlap(client, startdate, numweeks);
         const insertResult = await client.query(
             `INSERT INTO school_year (name, startdate, semester2_week) VALUES ($1, $2, $3) RETURNING id`,
@@ -78,8 +105,11 @@ export const createSchoolYear = async (name: string, startdate: string, numweeks
         );
         const id = insertResult.rows[0].id;
         await insertWeeks(client, id, startdate, 1, numweeks, conductBase, studyBase);
+        const promotion = previous && !previous.promoted
+            ? { fromschoolyear: previous.name, ...(await promoteClasses(client, previous.id, grade6)) }
+            : null;
         await client.query('COMMIT');
-        return checkSchoolYearExist(id);
+        return { ...(await checkSchoolYearExist(id)), promotion };
     } catch (err) {
         await client.query('ROLLBACK');
         throw err;
@@ -152,6 +182,11 @@ export const deleteSchoolYear = async (id: number) => {
     `, [id]);
     if (pointResult.rows[0].total > 0) {
         throw new HttpError(409, `Năm học ${schoolYear.name} đã có điểm thi đua, không thể xóa`);
+    }
+    // Năm học đã có lớp ra trường (lưu trữ) gắn vào thì giữ lại làm lịch sử
+    const archivedResult = await pool.query(`SELECT COUNT(*)::int AS total FROM class WHERE archivedyearid = $1`, [id]);
+    if (archivedResult.rows[0].total > 0) {
+        throw new HttpError(409, `Năm học ${schoolYear.name} có ${archivedResult.rows[0].total} lớp ra trường được lưu trữ, không thể xóa`);
     }
 
     await pool.query(`DELETE FROM school_year WHERE id = $1`, [id]);
