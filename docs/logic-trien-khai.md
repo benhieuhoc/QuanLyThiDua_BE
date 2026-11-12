@@ -6,7 +6,7 @@ Tài liệu tổng hợp nghiệp vụ, luồng xử lý và cách dùng API c�
 
 ## 1. Mục đích
 
-**Mục đích chính là chấm điểm thi đua cho các lớp** trong một trường THCS có nhiều phân hiệu. Điểm mỗi lớp được quản lý theo tuần, gồm 2 phần **Nề nếp** và **Học tập**; mỗi tuần mỗi phần được cấp một lượng điểm gốc cố định, sau đó cộng/trừ theo các lượt chấm. Kết quả được xếp hạng theo tuần, tháng hoặc học kỳ.
+**Mục đích chính là chấm điểm thi đua cho các lớp** trong một trường THCS có nhiều phân hiệu. Điểm mỗi lớp được quản lý theo tuần, gồm 2 phần **Nề nếp** và **Học tập**; mỗi tuần mỗi phần được cấp một lượng điểm gốc cố định, sau đó cộng/trừ theo các lượt chấm. Kết quả được xếp hạng theo tuần, tháng, học kỳ hoặc cả năm học, và xuất được ra file Excel.
 
 Phân hiệu, giáo viên, lớp, học sinh là dữ liệu nền: biết chấm cho lớp nào, ai chủ nhiệm, và học sinh nào vi phạm / được khen trong từng lượt chấm.
 
@@ -214,7 +214,8 @@ Gọi lại `POST /classes` cho khối 6 phân hiệu A sẽ tạo tiếp `6A4`.
 3. Xem kết quả:     GET /scores/ranking?schoolyearid=&week=   → bảng điểm + xếp hạng tuần
 4. Cuối tuần:       PUT /weeks/:id { "locked": true }      → chốt điểm
 5. Tổng kết:        GET /scores/periods?schoolyearid=                  → danh sách tuần / tháng / học kỳ để chọn
-                    GET /scores/ranking?schoolyearid=&month=2026-10    → xếp hạng tháng (hoặc week=8, semester=1)
+                    GET /scores/ranking?schoolyearid=&month=2026-10    → xếp hạng tháng (hoặc week=8, semester=1, year=1)
+                    GET /scores/export?schoolyearid=&month=2026-10     → tải file Excel cùng khoảng
                     GET /scores/class/:classid?schoolyearid=           → diễn biến 1 lớp theo tuần
                     GET /points?studentid=                             → lịch sử vi phạm / khen của 1 học sinh
 ```
@@ -371,7 +372,7 @@ Base URL khi chạy local: `http://localhost:3001` (theo `PORT` trong `.env`).
 | POST | `/teachers` | `{ branchid, names[] }` | admin |
 | PUT | `/teachers/:id` | `{ name?, branchid? }` | admin |
 | DELETE | `/teachers/:id` | | admin |
-| GET | `/classes` | `?branchid=&gradeid=` (kèm `numstudents`) | admin, user |
+| GET | `/classes` | `?branchid=&gradeid=&archived=true\|false` (kèm `numstudents`; `archived` mặc định `false` = lớp đang học) | admin, user |
 | GET | `/classes/:id` | (kèm `numstudents`, `students[]`) | admin, user |
 | POST | `/classes` | `{ gradeid, branchid, teacherIds[] }` (phần tử `null` = chưa có GVCN) | admin |
 | PUT | `/classes/:id` | `{ teacherid }` (`null` = bỏ GVCN) | admin |
@@ -395,7 +396,7 @@ Base URL khi chạy local: `http://localhost:3001` (theo `PORT` trong `.env`).
 | POST | `/points` | `{ weekid, classid, type, content, value, studentIds? }` | admin mọi lớp · cờ đỏ lớp được phân công |
 | PUT | `/points/:id` | `{ type?, content?, value?, studentIds? }` | admin mọi lượt · cờ đỏ lượt mình nhập |
 | DELETE | `/points/:id` | | như PUT |
-| GET | `/scores/ranking` | `?schoolyearid=` (bắt buộc) + đúng 1 trong `week=` (số tuần) / `month=YYYY-MM` / `semester=1\|2` / `year=1`, `&branchid=&gradeid=` | admin, user |
+| GET | `/scores/ranking` | `?schoolyearid=` (bắt buộc) + đúng 1 trong `week=` (số tuần) / `month=YYYY-MM` / `semester=1\|2` / `year=1` (hoặc `true`), `&branchid=&gradeid=` | admin, user |
 | GET | `/scores/export` | Query như `/scores/ranking`; trả file `.xlsx` (mục 9.8) | admin, user |
 | GET | `/scores/periods` | `?schoolyearid=` (bắt buộc) | admin, user |
 | GET | `/scores/weekly` | `?weekid=` (bắt buộc) `&branchid=&gradeid=`; chi tiết điểm gốc từng phần của 1 tuần | admin, user |
@@ -454,7 +455,7 @@ Giới hạn dữ liệu và mã lỗi của từng route được ghi trong not
 {
   "id": 5, "username": "codo.duc", "role": "user", "kind": "codo", "active": true,
   "teacherid": null, "teachername": null, "homeroomclassid": null, "homeroomclassname": null,
-  "studentid": 1, "studentcode": "SEED000001", "studentname": "Hoàng Minh Đức",
+  "studentid": 1, "studentcode": "2609138xxx", "studentname": "Hoàng Minh Đức",
   "studentclassid": 3, "studentclassname": "7A1",
   "classes": [{ "id": 1, "name": "6A1" }, { "id": 2, "name": "6A2" }],
   "created_at": "...", "updated_at": "..."
@@ -539,7 +540,7 @@ Request → router → (middleware auth) → controller → service → PostgreS
 
 Chạy dự án: cấu hình `.env`, tạo database rồi chạy `psql -U postgres -d QLHS -f cscript/init.sql`, sau đó `npm install` và `npm run dev`. Đăng nhập `admin` / `1` và đổi mật khẩu ngay. `init.sql` chạy lại được, không xóa dữ liệu: cột mới thêm bằng `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, dữ liệu chỉ thêm phần còn thiếu; đổi cấu trúc bảng khác thì DB cũ cần `ALTER TABLE` hoặc drop rồi chạy lại.
 
-Front-end (Next.js + shadcn/ui) nằm ở `../FE`, chạy tại `http://localhost:3000`. Các trang:
+Front-end (Next.js + shadcn/ui) nằm ở `../FE`, chạy tại `http://localhost:3000`. CORS (`src/index.ts`) cho phép `http://localhost:3000`, `http://192.168.1.2:3000` (thử trong mạng LAN) và bản deploy `https://quan-ly-thi-dua.vercel.app`; thêm domain FE mới thì sửa `allowedOrigins`. Các trang:
 
 | Nhóm | Trang |
 |---|---|
@@ -724,7 +725,7 @@ Thử trên DB riêng (không dùng `QLHS`): tạo DB, chạy `init.sql`, lùi n
 
 ### 9.8. Xuất Excel (FE chưa làm)
 
-`GET /scores/export` nhận đúng query của `/scores/ranking` (9.6), trả file `.xlsx` với header `Content-Disposition: attachment; filename="diem-thi-dua_2026-2027_tuan-8.xlsx"` (đã mở `Access-Control-Expose-Headers`). Lỗi vẫn trả JSON. Nội dung file xem `src/router/scoreRouter.ts`: file tuần có điểm gốc từng phần và cột "Chi tiết cộng / trừ" (mỗi lượt 1 dòng `[Nề nếp] Vệ sinh lớp chưa sạch: -2`, không ghi học sinh); file tháng / học kỳ / năm có Số tuần, TB / tuần.
+`GET /scores/export` nhận đúng query của `/scores/ranking` (9.6), trả file `.xlsx` với header `Content-Disposition: attachment; filename="diem-thi-dua_2026-2027_tuan-8.xlsx"; filename*=UTF-8''...` (đã mở `Access-Control-Expose-Headers`). Tên file: `diem-thi-dua_<năm học>_<tuan-8 | thang-2026-10 | hoc-ky-1 | ca-nam>`, thêm `_phan-hieu-A`, `_khoi-6` khi lọc. Lỗi vẫn trả JSON. Nội dung file xem `src/router/scoreRouter.ts`: file tuần có điểm gốc từng phần và cột "Chi tiết cộng / trừ" (mỗi lượt 1 dòng `[Nề nếp] Vệ sinh lớp chưa sạch: -2`, không ghi học sinh); file tháng / học kỳ / năm có Số tuần, TB / tuần.
 
 Không dùng `<a href>` (cần header `Authorization`) hay `api()` (luôn đọc JSON). Thêm vào `src/lib/api.ts`:
 
