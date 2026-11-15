@@ -112,7 +112,7 @@ Có 2 vai trò (bảng `account`). Vai trò `user` có 2 loại người dùng, 
 
 Học sinh thường không có tài khoản; chỉ học sinh được chọn làm cờ đỏ mới được admin cấp tài khoản. Mỗi lượt chấm lưu `point.accountid` là người nhập.
 
-Đăng nhập dùng JWT gửi qua header `Authorization: Bearer <token>`. Mọi API (trừ `GET /`, `POST /auth/login` và `GET /public/classes/:id` cho phụ huynh xem qua mã QR, mục 9.10) bắt buộc gửi token: thiếu / sai / hết hạn → 401; không đủ quyền → 403. Thêm/sửa/xóa phân hiệu, giáo viên, lớp, học sinh, năm học, tuần chỉ admin. Cách FE gửi token, xử lý 401/403, chặn trang: mục 9.1–9.3.
+Đăng nhập dùng JWT gửi qua header `Authorization: Bearer <token>`. Mọi API (trừ `GET /`, `POST /auth/login` và `GET /public/classes/:qrcode` cho phụ huynh xem qua mã QR, mục 9.10) bắt buộc gửi token: thiếu / sai / hết hạn → 401; không đủ quyền → 403. Thêm/sửa/xóa phân hiệu, giáo viên, lớp, học sinh, năm học, tuần chỉ admin. Cách FE gửi token, xử lý 401/403, chặn trang: mục 9.1–9.3.
 
 Đăng nhập: username không phân biệt hoa thường; mật khẩu 6 ký tự – 72 byte, hash bcrypt cost 10. Tài khoản bị khóa (`active = false`) thì đăng nhập trả 403 và token đang dùng bị từ chối ngay (401). Luôn phải còn ít nhất 1 admin hoạt động; admin không tự khóa / xóa mình. Role, `teacherid`, `studentid` không sửa được (xóa và tạo lại). Quy chuẩn chi tiết: [Ai_rules/security.md](../Ai_rules/security.md).
 
@@ -376,6 +376,7 @@ Base URL khi chạy local: `http://localhost:3001` (theo `PORT` trong `.env`).
 | GET | `/classes/:id` | (kèm `numstudents`, `students[]`) | admin, user |
 | POST | `/classes` | `{ gradeid, branchid, teacherIds[] }` (phần tử `null` = chưa có GVCN) | admin |
 | PUT | `/classes/:id` | `{ teacherid }` (`null` = bỏ GVCN) | admin |
+| PUT | `/classes/:id/qrcode` | Không body; sinh mã QR mới, QR cũ hết hiệu lực (mục 9.10) | admin |
 | DELETE | `/classes/:id` | | admin |
 | GET | `/students` | `?classid=&branchid=&gradeid=` | admin, user |
 | GET | `/students/:id` | | admin, user |
@@ -411,7 +412,7 @@ Base URL khi chạy local: `http://localhost:3001` (theo `PORT` trong `.env`).
 | PUT | `/accounts/:id` | `{ username?, password? (đặt lại), active? (false = khóa) }` | admin |
 | DELETE | `/accounts/:id` | | admin |
 | PUT | `/accounts/:id/classes` | `{ classIds: number[] }` thay toàn bộ lớp cờ đỏ chấm | admin |
-| GET | `/public/classes/:id` | `?schoolyearid=` (không bắt buộc); trang lớp cho phụ huynh qua mã QR (mục 9.10) | public |
+| GET | `/public/classes/:qrcode` | `?schoolyearid=` (không bắt buộc); trang lớp cho phụ huynh qua mã QR (mục 9.10) | public |
 
 Giới hạn dữ liệu và mã lỗi của từng route được ghi trong note ở `src/router/*Router.ts`.
 
@@ -422,12 +423,12 @@ Giới hạn dữ liệu và mã lỗi của từng route được ghi trong not
   "id": 1, "seq": 1, "gradeid": 1, "branchid": 1, "teacherid": 1,
   "numgrade": 6, "branchcode": "A", "branchname": "Phân hiệu 1",
   "teachername": "Nguyễn Văn An", "name": "6A1", "numstudents": 48,
-  "archivedyearid": null, "archivedyearname": null, "BaseQRCode": "/LopHoc/1",
+  "archivedyearid": null, "archivedyearname": null, "qrcode": "1bb69d33182448bc", "BaseQRCode": "/LopHoc/1bb69d33182448bc",
   "created_at": "...", "updated_at": "..."
 }
 ```
 
-`teacherid`, `teachername` là `null` khi lớp chưa có GVCN. `archivedyearid`, `archivedyearname` khác `null` khi lớp đã ra trường (lưu trữ ở năm học đó). `BaseQRCode` là đường dẫn trang công khai của lớp (mục 9.10). `GET /classes/:id` trả thêm `students[]`, mỗi phần tử:
+`teacherid`, `teachername` là `null` khi lớp chưa có GVCN. `archivedyearid`, `archivedyearname` khác `null` khi lớp đã ra trường (lưu trữ ở năm học đó). `qrcode` là mã ngẫu nhiên của trang công khai, `BaseQRCode` là đường dẫn trang đó (mục 9.10). `GET /classes/:id` trả thêm `students[]`, mỗi phần tử:
 
 ```json
 {
@@ -776,10 +777,11 @@ Trang `/tong-hop`: nút **Tải Excel** cạnh bộ lọc, dựng query giống 
 
 ### 9.10. Trang lớp công khai cho phụ huynh (mã QR, FE chưa làm)
 
-Mỗi lớp trả về từ `GET /classes`, `GET /classes/:id` (và `class` trong `/scores/class/:classid`) có `BaseQRCode: "/LopHoc/<id lớp>"`. Id lớp giữ nguyên khi lên lớp, nên mã QR in một lần dùng được cả các năm sau.
+Mỗi lớp trả về từ `GET /classes`, `GET /classes/:id` (và `class` trong `/scores/class/:classid`) có `qrcode` (mã ngẫu nhiên 16 ký tự hex) và `BaseQRCode: "/LopHoc/<qrcode>"`. Mã gắn với lớp, giữ nguyên khi lên lớp, nên QR in một lần dùng được các năm sau. Link **không** dùng id lớp (id tuần tự sẽ cho dò được tên học sinh của lớp khác); link `/LopHoc/<id>` cũ không còn dùng được.
 
 - Render QR: `const url = window.location.origin + cls.BaseQRCode` (vd `https://<domain FE>/LopHoc/12`) → thư viện QR (vd `qrcode.react`). Nên có nút tải / in mã QR ở trang chi tiết lớp hoặc danh sách lớp.
-- Trang `/LopHoc/[id]` đặt **ngoài** layout `(dashboard)` và không chặn đăng nhập (như `/dang-nhap`). Gọi `GET /public/classes/:id` **không** gửi token, không xử lý 401 về `/dang-nhap`.
+- Trang `/LopHoc/[qrcode]` đặt **ngoài** layout `(dashboard)` và không chặn đăng nhập (như `/dang-nhap`). Gọi `GET /public/classes/:qrcode` (đúng đoạn sau `/LopHoc/`) **không** gửi token, không xử lý 401 về `/dang-nhap`.
+- Đổi mã QR (admin, khi QR bị lộ): `PUT /classes/:id/qrcode` (không body) → trả lớp với `qrcode` / `BaseQRCode` mới; QR cũ trả 404. Nên có nút "Tạo mã QR mới" kèm xác nhận ("QR đã in sẽ không dùng được nữa").
 - Response `data`:
 
 ```ts
@@ -796,14 +798,16 @@ type PublicClassPage = {
     conduct_base: number; conduct_plus: number; conduct_minus: number; conduct_score: number
     study_base: number; study_plus: number; study_minus: number; study_score: number
     total: number; entries: number; rank: number; numclasses: number   // hạng toàn trường: rank / numclasses
-    points: { type: "Nề nếp" | "Học tập"; content: string; value: number }[]
+    points: { type: "Nề nếp" | "Học tập"; content: string; value: number
+              students: { name: string }[] }[]   // họ tên HS gắn vào lượt chấm (thứ tự như GET /points), [] nếu không có
   }[]
 }
 ```
 
 - Mặc định trả năm học đã bắt đầu gần nhất của lớp; ô chọn năm học lấy từ `schoolyears`, đổi năm gửi `?schoolyearid=`. Hiện tên lớp theo `schoolyear.classname` (lớp đã lên lớp có tên khác ở năm cũ).
 - Gợi ý hiển thị: tuần mới nhất nổi bật (Nề nếp, Học tập, Tổng, hạng X/Y), danh sách lượt cộng/trừ (`value < 0` đỏ, `> 0` xanh); `locked = false` ghi "Đang chấm, điểm có thể thay đổi".
-- Lỗi: 400 id / `schoolyearid` sai, 404 "Không tìm thấy lớp" / "Lớp X không có kết quả thi đua ở năm học này" → trang báo không tìm thấy.
+- Họ tên học sinh hiện ở cả lượt cộng và trừ (người dùng đã đồng ý công khai). API chỉ trả `name`, không id / mã / ngày sinh.
+- Lỗi: 400 `schoolyearid` sai; 404 "Không tìm thấy lớp" (mã sai định dạng / không tồn tại / đã bị đổi) hoặc "Lớp X không có kết quả thi đua ở năm học này" → trang báo không tìm thấy.
 
 ## 10. Nhật ký thay đổi API cho FE
 
@@ -814,3 +818,4 @@ type PublicClassPage = {
 | 2026-11-09 | Chuyển năm học / lên lớp, lớp ra trường (`archived`), `grade6`, `promotion`; DB chỉ còn `cscript/init.sql` | 4.7, 9.7 |
 | 2026-11-09 | Xếp hạng cả năm (`year=1`), `period.weekids`, xuất Excel `/scores/export` | 9.6, 9.8 |
 | 2026-11-15 | Lớp có `BaseQRCode` (`/LopHoc/<id>`); API công khai `GET /public/classes/:id` cho phụ huynh xem kết quả thi đua qua mã QR | 9.10 |
+| 2026-11-16 | **Breaking**: link công khai đổi sang mã ngẫu nhiên `qrcode` (`BaseQRCode: /LopHoc/<qrcode>`, `GET /public/classes/:qrcode`), link theo id không còn dùng; `points[].students: { name }[]`; admin đổi mã `PUT /classes/:id/qrcode`. Chạy lại `cscript/init.sql` để thêm cột `class.qrcode` | 9.10 |

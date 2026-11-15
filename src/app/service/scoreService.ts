@@ -2,7 +2,7 @@ import pool from "../../config/db";
 import { HttpError } from "../utils/http";
 import { checkWeekExist } from "./weekService";
 import { checkSchoolYearExist } from "./schoolYearService";
-import { getClassById } from "./classService";
+import { getClassById, findClassIdByQRCode } from "./classService";
 
 // Bảng điểm 1 tuần, xếp hạng theo tổng điểm trong phạm vi lọc (toàn trường / phân hiệu / khối)
 export const fetchWeeklyScore = async (weekid: number, filter: { branchid?: number, gradeid?: number } = {}) => {
@@ -207,10 +207,13 @@ export const fetchWeekPointDetails = async (weekid: number) => {
     return byClass;
 }
 
-// Trang công khai của lớp (phụ huynh quét mã QR BaseQRCode, không đăng nhập): chỉ trả thông tin lớp và kết quả thi đua,
-// không có học sinh, id giáo viên hay học sinh được gắn vào lượt chấm
+// Trang công khai của lớp (phụ huynh quét mã QR BaseQRCode, không đăng nhập), tìm lớp theo class.qrcode:
+// chỉ trả thông tin lớp và kết quả thi đua; học sinh gắn vào lượt chấm chỉ có họ tên (không id, mã, ngày sinh),
+// không có danh sách học sinh của lớp, id giáo viên hay người chấm
 // schoolyearid không truyền: năm học đã bắt đầu gần nhất mà lớp có tham gia (lớp ra trường: năm ra trường)
-export const fetchPublicClassScore = async (classid: number, schoolyearid?: number) => {
+export const fetchPublicClassScore = async (qrcode: string, schoolyearid?: number) => {
+    const classid = await findClassIdByQRCode(qrcode);
+    if (!classid) throw new HttpError(404, 'Không tìm thấy lớp');
     const cls = await getClassById(classid);
     if (!cls) throw new HttpError(404, 'Không tìm thấy lớp');
     const publicClass = {
@@ -259,16 +262,22 @@ export const fetchPublicClassScore = async (classid: number, schoolyearid?: numb
     `, [classid, schoolyear.id]);
 
     const pointsResult = await pool.query(`
-        SELECT p.weekid, p.type, p.content, p.value
+        SELECT p.weekid, p.type, p.content, p.value,
+               COALESCE((
+                   SELECT json_agg(json_build_object('name', s.name) ORDER BY s.id)
+                   FROM point_student ps
+                   JOIN student s ON s.id = ps.studentid
+                   WHERE ps.pointid = p.id
+               ), '[]'::json) AS students
         FROM point p
         JOIN week w ON w.id = p.weekid
         WHERE p.classid = $1 AND w.schoolyearid = $2
         ORDER BY p.weekid, CASE WHEN p.type = 'Nề nếp' THEN 0 ELSE 1 END, p.created_at, p.id
     `, [classid, schoolyear.id]);
-    const pointsByWeek = new Map<number, { type: string, content: string, value: number }[]>();
+    const pointsByWeek = new Map<number, { type: string, content: string, value: number, students: { name: string }[] }[]>();
     for (const row of pointsResult.rows) {
         if (!pointsByWeek.has(row.weekid)) pointsByWeek.set(row.weekid, []);
-        pointsByWeek.get(row.weekid)!.push({ type: row.type, content: row.content, value: row.value });
+        pointsByWeek.get(row.weekid)!.push({ type: row.type, content: row.content, value: row.value, students: row.students });
     }
 
     const weeks = weeksResult.rows.map((w: any) => ({ ...w, points: pointsByWeek.get(w.weekid) ?? [] }));

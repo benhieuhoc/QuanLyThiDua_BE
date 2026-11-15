@@ -1,4 +1,4 @@
-import { getClasses, getClass, postClasses, putClass, removeClass } from '../app/controller/classController';
+import { getClasses, getClass, postClasses, putClass, putClassQRCode, removeClass } from '../app/controller/classController';
 import { authenticate, authorize } from '../app/middleware/auth';
 
 const express = require('express');
@@ -6,7 +6,8 @@ const router = express.Router();
 router.use(authenticate);
 
 // Lớp — mount tại /classes
-// Dữ liệu trả về lấy từ class_view, có name (vd 6A1), numgrade, branchcode, branchname, teachername (null nếu chưa có GVCN), numstudents (sĩ số)
+// Dữ liệu trả về lấy từ class_view, có name (vd 6A1), numgrade, branchcode, branchname, teachername (null nếu chưa có GVCN), numstudents (sĩ số),
+// qrcode, BaseQRCode ("/LopHoc/<qrcode>", đường dẫn trang công khai cho phụ huynh)
 // Quyền: đọc = admin, user (cờ đỏ: students[] chỉ có ở lớp được phân công); ghi = admin
 // Mọi route qua authenticate (401 chưa đăng nhập); route ghi qua authorize('admin') (403)
 
@@ -32,6 +33,11 @@ router.post('/', authorize('admin'), postClasses);
 // Body: { teacherid: number | null } — đổi giáo viên chủ nhiệm (phải cùng phân hiệu, chưa chủ nhiệm lớp khác), null để bỏ phân công
 // 400 dữ liệu sai, 404 không tìm thấy, 409 giáo viên đã chủ nhiệm lớp khác / lớp đã ra trường (lưu trữ)
 router.put('/:id', authorize('admin'), putClass);
+
+// PUT /classes/:id/qrcode
+// Không có body. Sinh mã QR mới cho lớp (kể cả lớp đã lưu trữ): BaseQRCode đổi, link / QR cũ trả 404
+// Trả lớp kèm BaseQRCode mới. 400 id sai, 404 không tìm thấy
+router.put('/:id/qrcode', authorize('admin'), putClassQRCode);
 
 // DELETE /classes/:id
 // 404 không tìm thấy, 409 nếu lớp còn học sinh hoặc đã có điểm thi đua

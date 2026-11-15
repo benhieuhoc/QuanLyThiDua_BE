@@ -124,17 +124,18 @@ export const getClassScore = async (req: any, res: any) => {
     }
 }
 
-// Public (không đăng nhập): trang lớp cho phụ huynh qua mã QR. Query: ?schoolyearid= (không bắt buộc)
+// Public (không đăng nhập): trang lớp cho phụ huynh qua mã QR, :qrcode = class.qrcode. Query: ?schoolyearid= (không bắt buộc)
+// Mã sai định dạng trả 404 như mã không tồn tại
 export const getPublicClassScore = async (req: any, res: any) => {
     try {
-        const id = parseId(req.params.id);
-        if (!id) return sendError(res, 400, 'id không hợp lệ');
+        const qrcode = String(req.params.qrcode ?? '').toLowerCase();
+        if (!/^[0-9a-f]{16}$/.test(qrcode)) return sendError(res, 404, 'Không tìm thấy lớp');
         let schoolyearid: number | undefined;
         if (req.query.schoolyearid !== undefined) {
             schoolyearid = parseId(req.query.schoolyearid) ?? undefined;
             if (!schoolyearid) return sendError(res, 400, 'schoolyearid không hợp lệ');
         }
-        return sendSuccess(res, await fetchPublicClassScore(id, schoolyearid));
+        return sendSuccess(res, await fetchPublicClassScore(qrcode, schoolyearid));
     } catch (err) {
         return handleError(res, err);
     }

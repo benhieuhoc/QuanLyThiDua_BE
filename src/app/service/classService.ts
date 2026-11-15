@@ -4,9 +4,10 @@ import { checkGradeExist } from "./gradeService";
 import { checkBranchExist } from "./branchService";
 import { checkListTeacherExist, fetchHomeroomClasses } from "./teacherService";
 
-// Đường dẫn trang công khai của lớp (FE render thành mã QR cho phụ huynh), theo id lớp vì id giữ nguyên khi lên lớp
+// Đường dẫn trang công khai của lớp (FE render thành mã QR cho phụ huynh) theo class.qrcode (ngẫu nhiên, khó đoán),
+// giữ nguyên khi lên lớp; admin đổi mã bằng regenerateClassQRCode
 export const BASE_QR_PATH = '/LopHoc/';
-const baseQRCode = `'${BASE_QR_PATH}' || cv.id AS "BaseQRCode"`;
+const baseQRCode = `'${BASE_QR_PATH}' || cv.qrcode AS "BaseQRCode"`;
 
 // Tên lớp (6A1, 6B2...) lấy từ class_view, kèm sĩ số (numstudents)
 // archived: false (mặc định) = lớp đang học, true = lớp đã lưu trữ (ra trường), kèm tên năm học ra trường
@@ -38,6 +39,22 @@ export const getClassById = async (id: number) => {
     `;
     const result = await pool.query(query, [id]);
     return result.rows[0];
+}
+
+// Tìm id lớp theo mã QR (trang công khai), undefined nếu không có
+export const findClassIdByQRCode = async (qrcode: string) => {
+    const result = await pool.query(`SELECT id FROM class WHERE qrcode = $1`, [qrcode]);
+    return result.rows[0]?.id as number | undefined;
+}
+
+// Sinh mã QR mới cho lớp (mã cũ / QR đã in hết hiệu lực), dùng cả với lớp đã lưu trữ
+export const regenerateClassQRCode = async (id: number) => {
+    const result = await pool.query(`
+        UPDATE class SET qrcode = left(replace(gen_random_uuid()::text, '-', ''), 16), updated_at = NOW()
+        WHERE id = $1 RETURNING id
+    `, [id]);
+    if (result.rowCount === 0) throw new HttpError(404, 'Không tìm thấy lớp');
+    return getClassById(id);
 }
 
 // Lớp đã lưu trữ (ra trường) chỉ để xem: không đổi GVCN, thêm học sinh, chấm điểm hay phân công cờ đỏ

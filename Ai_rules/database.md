@@ -31,6 +31,7 @@
 - Học sinh (`student`) thuộc đúng 1 lớp (`classid`); `code` là mã học sinh theo hồ sơ của Sở, duy nhất; `gender` là `'Nam'`/`'Nữ'` hoặc null, `birthdate` có thể null.
 - Giáo viên thuộc 1 phân hiệu (`teacher.branchid`), chủ nhiệm tối đa 1 lớp (`class_teacher_unique`), lớp chủ nhiệm phải cùng phân hiệu. `class.teacherid` có thể null (lớp chưa có GVCN), nên `class_view` LEFT JOIN `teacher`.
 - `class.archivedyearid` khác null = lớp đã ra trường (lưu trữ khi lên lớp). `class_view` gồm cả lớp lưu trữ; truy vấn danh sách lớp / học sinh đang học phải lọc `archivedyearid IS NULL`. `(gradeid, branchid, seq)` chỉ duy nhất trong lớp đang học (unique index `class_active_unique`), nên tìm lớp theo tên (`name = '9A1'`) phải kèm điều kiện này.
+- `class.qrcode`: mã ngẫu nhiên 16 ký tự hex (default `gen_random_uuid()`, unique `class_qrcode_unique`) cho trang lớp công khai `/LopHoc/<qrcode>`; không dùng id lớp trong link công khai vì id tuần tự dò được.
 - `class_year` (`schoolyearid`, `classid`, `gradeid`, `numgrade`, `name`, `teacherid`, `teachername`): ảnh chụp lớp của năm học đã lên lớp; `score_view` dùng để giữ tên / khối / GVCN năm cũ.
 
 ## Tài khoản

@@ -169,6 +169,12 @@ ALTER TABLE class ADD COLUMN IF NOT EXISTS archivedyearid integer
 ALTER TABLE class DROP CONSTRAINT IF EXISTS class_unique;
 CREATE UNIQUE INDEX IF NOT EXISTS class_active_unique ON class (gradeid, branchid, seq) WHERE archivedyearid IS NULL;
 
+-- Mã ngẫu nhiên của trang lớp công khai (phụ huynh quét QR: /LopHoc/<qrcode>), 16 ký tự hex, khó đoán để không dò được lớp khác
+-- Default volatile nên lớp cũ được sinh mã riêng từng dòng khi thêm cột; admin đổi mã khi QR bị lộ (PUT /classes/:id/qrcode)
+ALTER TABLE class ADD COLUMN IF NOT EXISTS qrcode character varying(16) NOT NULL
+    DEFAULT left(replace(gen_random_uuid()::text, '-', ''), 16);
+CREATE UNIQUE INDEX IF NOT EXISTS class_qrcode_unique ON class (qrcode);
+
 -- Ảnh chụp lớp của 1 năm học đã kết thúc (tên lớp, khối, GVCN lúc đó), ghi khi tạo năm học mới và lên lớp
 -- score_view dùng bảng này để bảng điểm năm cũ giữ tên lớp cũ (6A1 năm trước không thành 7A1)
 CREATE TABLE IF NOT EXISTS class_year

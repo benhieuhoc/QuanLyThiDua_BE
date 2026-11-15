@@ -44,8 +44,9 @@ Project chỉ có **2 role** (bảng `account`): `admin` và `user`. Role `user`
 
 ## Route công khai (`/public`)
 
-- `GET /public/classes/:id`: trang lớp cho phụ huynh mở qua mã QR (`BaseQRCode`), không đăng nhập.
-- Chỉ trả kết quả thi đua của lớp (điểm tuần, hạng, nội dung lượt cộng/trừ) và thông tin lớp (tên, phân hiệu, tên GVCN, sĩ số). **Không** trả danh sách học sinh, học sinh gắn vào lượt chấm, tài khoản / người nhập hay id giáo viên.
+- `GET /public/classes/:qrcode`: trang lớp cho phụ huynh mở qua mã QR (`BaseQRCode`), không đăng nhập.
+- Link công khai dùng `class.qrcode` (ngẫu nhiên, khó đoán), **không** dùng id tuần tự, để không dò được trang của lớp khác. Mã sai định dạng trả 404 giống mã không tồn tại. QR bị lộ thì admin đổi mã (`PUT /classes/:id/qrcode`).
+- Chỉ trả kết quả thi đua của lớp (điểm tuần, hạng, nội dung lượt cộng/trừ), **họ tên** học sinh gắn vào từng lượt chấm (người dùng đã chấp nhận công khai, 2026-11-16) và thông tin lớp (tên, phân hiệu, tên GVCN, sĩ số). **Không** trả danh sách học sinh của lớp, id / mã / ngày sinh / giới tính học sinh, tài khoản / người nhập hay id giáo viên.
 - Thêm dữ liệu vào route public phải liệt kê cột cụ thể, không `SELECT *`.
 
 ## Khác

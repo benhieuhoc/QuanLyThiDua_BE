@@ -1,5 +1,5 @@
 import { sendSuccess, sendError, handleError, parseId } from "../utils/http";
-import { getAllClass, getClassById, batchCreateClass, updateClassTeacher, deleteClass } from "../service/classService";
+import { getAllClass, getClassById, batchCreateClass, updateClassTeacher, deleteClass, regenerateClassQRCode } from "../service/classService";
 import { fetchAssignedClassIds } from "../service/accountService";
 import { fetchAllStudent } from "../service/studentService";
 
@@ -87,6 +87,17 @@ export const removeClass = async (req: any, res: any) => {
         const id = parseId(req.params.id);
         if (!id) return sendError(res, 400, 'id không hợp lệ');
         return sendSuccess(res, await deleteClass(id), 'Xóa lớp thành công');
+    } catch (err) {
+        return handleError(res, err);
+    }
+}
+
+// Sinh mã QR mới (BaseQRCode đổi, QR cũ hết hiệu lực) khi mã bị lộ
+export const putClassQRCode = async (req: any, res: any) => {
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return sendError(res, 400, 'id không hợp lệ');
+        return sendSuccess(res, await regenerateClassQRCode(id), 'Đã tạo mã QR mới');
     } catch (err) {
         return handleError(res, err);
     }
