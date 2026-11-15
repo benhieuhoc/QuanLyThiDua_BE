@@ -4,12 +4,17 @@ import { checkGradeExist } from "./gradeService";
 import { checkBranchExist } from "./branchService";
 import { checkListTeacherExist, fetchHomeroomClasses } from "./teacherService";
 
+// Đường dẫn trang công khai của lớp (FE render thành mã QR cho phụ huynh), theo id lớp vì id giữ nguyên khi lên lớp
+export const BASE_QR_PATH = '/LopHoc/';
+const baseQRCode = `'${BASE_QR_PATH}' || cv.id AS "BaseQRCode"`;
+
 // Tên lớp (6A1, 6B2...) lấy từ class_view, kèm sĩ số (numstudents)
 // archived: false (mặc định) = lớp đang học, true = lớp đã lưu trữ (ra trường), kèm tên năm học ra trường
 export const getAllClass = async (filter: { branchid?: number, gradeid?: number, archived?: boolean } = {}) => {
     const query = `
         SELECT cv.*, sy.name AS archivedyearname,
-               (SELECT COUNT(*)::int FROM student s WHERE s.classid = cv.id) AS numstudents
+               (SELECT COUNT(*)::int FROM student s WHERE s.classid = cv.id) AS numstudents,
+               ${baseQRCode}
         FROM class_view cv
         LEFT JOIN school_year sy ON sy.id = cv.archivedyearid
         WHERE ($1::int IS NULL OR cv.branchid = $1)
@@ -25,7 +30,8 @@ export const getAllClass = async (filter: { branchid?: number, gradeid?: number,
 export const getClassById = async (id: number) => {
     const query = `
         SELECT cv.*, sy.name AS archivedyearname,
-               (SELECT COUNT(*)::int FROM student s WHERE s.classid = cv.id) AS numstudents
+               (SELECT COUNT(*)::int FROM student s WHERE s.classid = cv.id) AS numstudents,
+               ${baseQRCode}
         FROM class_view cv
         LEFT JOIN school_year sy ON sy.id = cv.archivedyearid
         WHERE cv.id = $1

@@ -1,5 +1,5 @@
 import { sendSuccess, sendError, sendFile, handleError, parseId, parseIntInRange } from "../utils/http";
-import { fetchWeeklyScore, fetchSummaryScore, fetchClassScore, fetchRanking, fetchRankingPeriods, RankingPeriod } from "../service/scoreService";
+import { fetchWeeklyScore, fetchSummaryScore, fetchClassScore, fetchRanking, fetchRankingPeriods, fetchPublicClassScore, RankingPeriod } from "../service/scoreService";
 import { buildScoreWorkbook } from "../service/scoreExportService";
 
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -119,6 +119,22 @@ export const getClassScore = async (req: any, res: any) => {
         const schoolyearid = parseId(req.query.schoolyearid);
         if (!schoolyearid) return sendError(res, 400, 'schoolyearid không hợp lệ');
         return sendSuccess(res, await fetchClassScore(classid, schoolyearid));
+    } catch (err) {
+        return handleError(res, err);
+    }
+}
+
+// Public (không đăng nhập): trang lớp cho phụ huynh qua mã QR. Query: ?schoolyearid= (không bắt buộc)
+export const getPublicClassScore = async (req: any, res: any) => {
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return sendError(res, 400, 'id không hợp lệ');
+        let schoolyearid: number | undefined;
+        if (req.query.schoolyearid !== undefined) {
+            schoolyearid = parseId(req.query.schoolyearid) ?? undefined;
+            if (!schoolyearid) return sendError(res, 400, 'schoolyearid không hợp lệ');
+        }
+        return sendSuccess(res, await fetchPublicClassScore(id, schoolyearid));
     } catch (err) {
         return handleError(res, err);
     }

@@ -206,3 +206,71 @@ export const fetchWeekPointDetails = async (weekid: number) => {
     }
     return byClass;
 }
+
+// Trang công khai của lớp (phụ huynh quét mã QR BaseQRCode, không đăng nhập): chỉ trả thông tin lớp và kết quả thi đua,
+// không có học sinh, id giáo viên hay học sinh được gắn vào lượt chấm
+// schoolyearid không truyền: năm học đã bắt đầu gần nhất mà lớp có tham gia (lớp ra trường: năm ra trường)
+export const fetchPublicClassScore = async (classid: number, schoolyearid?: number) => {
+    const cls = await getClassById(classid);
+    if (!cls) throw new HttpError(404, 'Không tìm thấy lớp');
+    const publicClass = {
+        id: cls.id, name: cls.name, numgrade: cls.numgrade, branchcode: cls.branchcode, branchname: cls.branchname,
+        teachername: cls.teachername, numstudents: cls.numstudents,
+        archivedyearid: cls.archivedyearid, archivedyearname: cls.archivedyearname, BaseQRCode: cls.BaseQRCode,
+    };
+
+    // Các năm học lớp có mặt trong score_view (năm cũ theo class_year, năm hiện tại theo lớp đang học)
+    const yearsResult = await pool.query(`
+        SELECT sy.id, sy.name, sy.startdate, MAX(w.enddate) AS enddate,
+               MIN(s.classname) FILTER (WHERE s.numweek = 1) AS classname,
+               (sy.startdate <= CURRENT_DATE) AS started
+        FROM score_view s
+        JOIN week w ON w.id = s.weekid
+        JOIN school_year sy ON sy.id = s.schoolyearid
+        WHERE s.classid = $1
+        GROUP BY sy.id
+        ORDER BY sy.startdate DESC
+    `, [classid]);
+    const schoolyears = yearsResult.rows;
+
+    let schoolyear: any;
+    if (schoolyearid !== undefined) {
+        schoolyear = schoolyears.find((y: any) => y.id === schoolyearid);
+        if (!schoolyear) throw new HttpError(404, `Lớp ${cls.name} không có kết quả thi đua ở năm học này`);
+    } else {
+        schoolyear = schoolyears.find((y: any) => y.started) ?? schoolyears[0];
+    }
+    if (!schoolyear) return { class: publicClass, schoolyears, schoolyear: null, weeks: [] };
+
+    // Chỉ các tuần đã bắt đầu (tuần tương lai chỉ có điểm gốc); rank toàn trường của từng tuần
+    const weeksResult = await pool.query(`
+        SELECT s.weekid, s.numweek, w.startdate, w.enddate, s.locked, s.classname, s.teachername,
+               s.conduct_base, s.conduct_plus, s.conduct_minus, s.conduct_score,
+               s.study_base, s.study_plus, s.study_minus, s.study_score, s.total, s.entries, s.rank,
+               (SELECT COUNT(*)::int FROM score_view x WHERE x.weekid = s.weekid) AS numclasses
+        FROM (
+            SELECT *, RANK() OVER (PARTITION BY weekid ORDER BY total DESC)::int AS rank
+            FROM score_view
+            WHERE schoolyearid = $2
+        ) s
+        JOIN week w ON w.id = s.weekid
+        WHERE s.classid = $1 AND w.startdate <= CURRENT_DATE
+        ORDER BY s.numweek DESC
+    `, [classid, schoolyear.id]);
+
+    const pointsResult = await pool.query(`
+        SELECT p.weekid, p.type, p.content, p.value
+        FROM point p
+        JOIN week w ON w.id = p.weekid
+        WHERE p.classid = $1 AND w.schoolyearid = $2
+        ORDER BY p.weekid, CASE WHEN p.type = 'Nề nếp' THEN 0 ELSE 1 END, p.created_at, p.id
+    `, [classid, schoolyear.id]);
+    const pointsByWeek = new Map<number, { type: string, content: string, value: number }[]>();
+    for (const row of pointsResult.rows) {
+        if (!pointsByWeek.has(row.weekid)) pointsByWeek.set(row.weekid, []);
+        pointsByWeek.get(row.weekid)!.push({ type: row.type, content: row.content, value: row.value });
+    }
+
+    const weeks = weeksResult.rows.map((w: any) => ({ ...w, points: pointsByWeek.get(w.weekid) ?? [] }));
+    return { class: publicClass, schoolyears, schoolyear, weeks };
+}

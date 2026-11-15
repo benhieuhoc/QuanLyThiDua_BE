@@ -11,10 +11,10 @@ Trạng thái: ✅ hoàn thành · 🚧 đang làm / còn lỗi · ⬜ chưa là
 ```
 src/index.ts  (express.json → morgan → cors)
   └─ src/router/index.ts            mount /branches, /grades, /teachers, /classes, /students,
-       │                            /school-years, /weeks, /points, /scores, /auth, /accounts
+       │                            /school-years, /weeks, /points, /scores, /auth, /accounts, /public
        └─ src/router/<entity>Router.ts
             └─ authenticate → authorize(...roles)   src/app/middleware/auth.ts
-                                    ✅ mọi router (trừ GET / và POST /auth/login); route ghi nghiệp vụ authorize('admin');
+                                    ✅ mọi router (trừ GET /, POST /auth/login và /public); route ghi nghiệp vụ authorize('admin');
                                     /points kiểm tra quyền theo lớp trong pointService
                  └─ src/app/controller/<entity>Controller.ts   validate, gọi service, handleError
                       └─ src/app/service/<entity>Service.ts    nghiệp vụ + SQL, throw HttpError
@@ -45,7 +45,7 @@ Cột "Quyền" là quyền đã gắn (`security.md`): `authenticate` ở đầ
 | POST | `/teachers` | `teacherController.postTeachers` — body `{ branchid, names[] }` | admin | ✅ |
 | PUT | `/teachers/:id` | `teacherController.putTeacher` — body `{ name?, branchid? }` | admin | ✅ |
 | DELETE | `/teachers/:id` | `teacherController.removeTeacher` — 409 nếu đang chủ nhiệm | admin | ✅ |
-| GET | `/classes?branchid=&gradeid=&archived=` | `classController.getClasses` — kèm `numstudents`, `archivedyearname`; `archived=true` = lớp ra trường | admin, user | ✅ |
+| GET | `/classes?branchid=&gradeid=&archived=` | `classController.getClasses` — kèm `numstudents`, `archivedyearname`, `BaseQRCode`; `archived=true` = lớp ra trường | admin, user | ✅ |
 | GET | `/classes/:id` | `classController.getClass` — kèm `numstudents`, `students[]` (cờ đỏ: `[]` nếu lớp không được phân công); lấy được cả lớp lưu trữ | admin, user | ✅ |
 | POST | `/classes` | `classController.postClasses` — body `{ gradeid, branchid, teacherIds[] }`, phần tử `null` = lớp chưa có GVCN | admin | ✅ |
 | PUT | `/classes/:id` | `classController.putClass` — body `{ teacherid }`, `null` = bỏ GVCN; 409 lớp lưu trữ | admin | ✅ |
@@ -83,6 +83,7 @@ Cột "Quyền" là quyền đã gắn (`security.md`): `authenticate` ở đầ
 | POST | `/accounts` | `accountController.postAccount` — body `{ username, password, role, teacherid?, studentid? }` | admin | ✅ |
 | PUT | `/accounts/:id` | `accountController.putAccount` — body `{ username?, password?, active? }`; không đổi role/teacherid/studentid | admin | ✅ |
 | DELETE | `/accounts/:id` | `accountController.removeAccount` — 409 tự xóa / admin hoạt động cuối | admin | ✅ |
+| GET | `/public/classes/:id?schoolyearid=` | `scoreController.getPublicClassScore` — trang lớp cho phụ huynh (mã QR `BaseQRCode`): thông tin lớp, `schoolyears[]`, điểm các tuần đã bắt đầu + `points[]` (không học sinh); 404 lớp / năm học | public | ✅ |
 | PUT | `/accounts/:id/classes` | `accountController.putAccountClasses` — body `{ classIds[] }` thay toàn bộ lớp cờ đỏ chấm | admin | ✅ |
 
 ## Services
@@ -92,13 +93,13 @@ Cột "Quyền" là quyền đã gắn (`security.md`): `authenticate` ở đầ
 | `branchService.ts` | `fetchAllBranch`, `checkBranchExist`, `createBranch`, `updateBranch`, `deleteBranch` | branch | CRUD phân hiệu |
 | `gradeService.ts` | `fetchAllGrade`, `checkGradeExist` | grade | Khối chỉ đọc (khởi tạo trong `init.sql`) |
 | `teacherService.ts` | `fetchAllTeacher(branchid?)`, `checkTeacherExist`, `checkListTeacherExist`, `fetchHomeroomClasses`, `createTeacher(branchid, names)`, `updateTeacher`, `deleteTeacher` | teacher, class_view | Insert hàng loạt theo phân hiệu; đổi phân hiệu bị chặn khi đang chủ nhiệm |
-| `classService.ts` | `getAllClass(filter)` (`archived` mặc định false), `getClassById`, `assertClassActive`, `batchCreateClass`, `updateClassTeacher`, `deleteClass`, `promoteClasses(client, oldYearId, grade6?)` | class, class_view, class_year, student, account, account_class, school_year | Xem luồng tạo lớp và lên lớp bên dưới; `getAllClass`/`getClassById` kèm `numstudents` (đếm thẳng bảng `student`, không import `studentService` để tránh import vòng), `archivedyearname`; `assertClassActive` (409 lớp lưu trữ) dùng ở `updateClassTeacher`, `studentService`, `pointService.createPoint` |
+| `classService.ts` | `getAllClass(filter)` (`archived` mặc định false), `getClassById`, `assertClassActive`, `batchCreateClass`, `updateClassTeacher`, `deleteClass`, `promoteClasses(client, oldYearId, grade6?)` | class, class_view, class_year, student, account, account_class, school_year | Xem luồng tạo lớp và lên lớp bên dưới; `getAllClass`/`getClassById` kèm `numstudents` (đếm thẳng bảng `student`, không import `studentService` để tránh import vòng), `archivedyearname`; `BaseQRCode` = `BASE_QR_PATH` (`'/LopHoc/'`) + id, tính trong SELECT (không lưu DB); `assertClassActive` (409 lớp lưu trữ) dùng ở `updateClassTeacher`, `studentService`, `pointService.createPoint` |
 | `studentService.ts` | `GENDERS`, `fetchAllStudent(filter)` (filter `classIds` để giới hạn cờ đỏ; không có `classid` thì bỏ lớp lưu trữ), `checkStudentExist`, `checkListStudentExist`, `createStudent(classid, students)`, `updateStudent`, `deleteStudent` | student, class_view, point_student | Thêm hàng loạt vào 1 lớp; chuyển lớp bằng đổi `classid`; dùng `getClassById` + `assertClassActive` để kiểm tra lớp đích |
 | `schoolYearService.ts` | `fetchAllSchoolYear`, `checkSchoolYearExist`, `createSchoolYear(..., grade6?)`, `updateSchoolYear`, `deleteSchoolYear` | school_year, week, class_year, class | Tạo/đổi số tuần trong transaction + `LOCK TABLE school_year`; chặn chồng thời gian giữa các năm học; tạo năm học chỉ khi năm mới nhất đã kết thúc và gọi `promoteClasses` trong cùng transaction (xem luồng lên lớp); `semester2_week` trả giá trị hiệu lực (null → `CEIL(numweeks/2)+1`), phải nằm trong 2..numweeks |
 | `weekService.ts` | `fetchAllWeek(schoolyearid?)`, `checkWeekExist`, `fetchCurrentWeek`, `checkWeekOpen`, `updateWeek` | week | `checkWeekOpen` dùng chung để chặn sửa điểm tuần đã khóa (409) |
 | `pointService.ts` | `POINT_TYPES`, `fetchAllPoint(filter)`, `checkPointExist`, `createPoint(actor, ...)`, `updatePoint(actor, ...)`, `deletePoint(actor, ...)` | point, point_student, student, class_view, week, account | Kèm `classteacherid`, `accountusername`; GVCN bị chặn bằng `assertNotViewOnly`; quyền theo lớp bằng `canScoreClass` + `assertCanManagePoint` (403 trước 409 tuần khóa); lượt cộng/trừ nhập tự do; gắn học sinh qua `point_student` (tạo/sửa trong transaction, học sinh mới gắn phải thuộc lớp của lượt chấm, dùng `checkListStudentExist`) |
 | `accountService.ts` | `ROLES`, `Actor`, `fetchAllAccount(filter)`, `checkAccountExist`, `fetchAuthAccount`, `fetchAssignedClassIds`, `canScoreClass`, `login`, `changePassword`, `createAccount`, `updateAccount`, `deleteAccount`, `replaceAccountClasses` | account, account_class, teacher, student, class_view | Không SELECT `password` ra ngoài (`selectAccount` liệt kê cột); `kind` = admin / gvcn / codo; login sai username vẫn chạy bcrypt với hash giả; luôn còn ≥ 1 admin hoạt động; không tự khóa / xóa mình; cờ đỏ không được phân công lớp của mình hay lớp lưu trữ (409) |
-| `scoreService.ts` | `fetchWeeklyScore`, `fetchSummaryScore`, `fetchClassScore`, `fetchRanking` (khoảng `week`/`month`/`semester`/`year`), `fetchRankingPeriods`, `fetchWeekPointDetails(weekid)` | score_view, week, point | Chỉ đọc; rank bằng `RANK() OVER` (cùng điểm cùng hạng). Xem mục xếp hạng theo khoảng bên dưới |
+| `scoreService.ts` | `fetchWeeklyScore`, `fetchSummaryScore`, `fetchClassScore`, `fetchRanking` (khoảng `week`/`month`/`semester`/`year`), `fetchRankingPeriods`, `fetchWeekPointDetails(weekid)`, `fetchPublicClassScore(classid, schoolyearid?)` | score_view, week, point, school_year | Chỉ đọc; rank bằng `RANK() OVER` (cùng điểm cùng hạng). Xem mục xếp hạng theo khoảng bên dưới |
 | `scoreExportService.ts` | `buildScoreWorkbook(schoolyearid, period, filter)` → `{ filename, buffer }` | (qua `fetchRanking`, `fetchWeekPointDetails`, `checkBranchExist`, `checkGradeExist`) | Dựng file Excel bằng `exceljs`: dòng 1–3 tiêu đề / năm học + khoảng ngày + phạm vi / ghi chú, header 2 tầng (Nề nếp, Học tập), cố định cột Hạng–Lớp và header, in ngang vừa 1 trang ngang. Không đụng `res` |
 
 ### Luồng tạo lớp hàng loạt (`batchCreateClass`)
@@ -144,7 +145,7 @@ Một transaction, `LOCK TABLE school_year` rồi `LOCK TABLE class`:
 
 | File | Mục đích | Trạng thái |
 |---|---|---|
-| `src/app/middleware/auth.ts` → `authenticate` | Đọc `Authorization: Bearer`, verify JWT, tra lại `account` mỗi request (bị khóa / xóa → 401 ngay), gắn `req.user = { id, role, kind, teacherid, studentid, studentclassid }` (lấy từ DB) | ✅ mọi router (`router.use`), trừ `GET /`, `POST /auth/login` |
+| `src/app/middleware/auth.ts` → `authenticate` | Đọc `Authorization: Bearer`, verify JWT, tra lại `account` mỗi request (bị khóa / xóa → 401 ngay), gắn `req.user = { id, role, kind, teacherid, studentid, studentclassid }` (lấy từ DB) | ✅ mọi router (`router.use`), trừ `GET /`, `POST /auth/login`, `/public` (`publicRouter.ts`) |
 | `src/app/middleware/auth.ts` → `authorize(...roles)` | Kiểm tra `req.user.role`, sai → 403 | ✅ route ghi của branch/teacher/class/student/school-year/week, toàn bộ `/accounts` |
 | Quyền theo dữ liệu sở hữu | `pointService` (chấm điểm), `studentController` / `classController` (cờ đỏ xem học sinh) | ✅ |
 
@@ -179,4 +180,5 @@ SQL: chỉ một file `cscript/init.sql` (phần 1 schema, phần 2 dữ liệu 
 - Xuất Excel (2026-11-09) dùng thư viện `exceljs` (thêm vào `dependencies`), dựng file trong service riêng `scoreExportService` (không phải bảng mới) để `scoreService` chỉ lo số liệu; số liệu dùng lại `fetchRanking` để file luôn khớp màn hình xếp hạng. Lỗi vẫn trả JSON (FE kiểm tra `response.ok` trước khi đọc blob).
 - Điểm là số nguyên (`integer`); `SUM`/`COUNT` trong SQL cast `::int` để `pg` trả number thay vì string.
 - Lên lớp (2026-11-09): lớp là lứa học sinh đi lên theo năm (đổi `gradeid`, giữ id / học sinh / GVCN) thay vì tạo lớp mới mỗi năm, để không phải chuyển học sinh và phân công lại. Khối 9 **lưu trữ** (`archivedyearid`) thay vì xóa, vì xóa lớp sẽ CASCADE mất điểm và lượt chấm của năm cũ. Tên / khối / GVCN năm cũ chụp vào `class_year` để bảng điểm năm cũ không đổi tên theo lớp đã lên. `class_unique` thay bằng unique index một phần `class_active_unique` (8A1 lên 9A1 khi 9A1 cũ đã lưu trữ). `class.archivedyearid` thêm bằng `ALTER TABLE` sau bảng `school_year` (khóa ngoại cần bảng này), không khai báo trong `CREATE TABLE class`; FK không CASCADE, xóa năm học có lớp lưu trữ bị chặn 409. `class_view`/`score_view` đổi sang `DROP VIEW` + `CREATE VIEW` vì `c.*` đổi thứ tự cột khi thêm cột. `GET /points` vẫn hiện tên lớp hiện tại (chưa dùng `class_year`).
+- Trang công khai cho phụ huynh (2026-11-15): `BaseQRCode` = `/LopHoc/<id lớp>`, FE ghép domain FE rồi render mã QR. Dùng id lớp (không thêm cột mã riêng) vì id giữ nguyên khi lên lớp, nên một mã QR theo lứa học sinh suốt các năm. Router riêng `/public` không qua `authenticate`; `fetchPublicClassScore` chỉ chọn cột cần thiết, không trả học sinh, `point_student`, `accountid`, `teacherid`. Đánh đổi: id tuần tự nên ai cũng xem được điểm của mọi lớp (dữ liệu vốn công khai trong trường); nội dung lượt chấm là chữ tự do, người chấm không nên ghi tên học sinh vào `content`.
 - Lớp lưu trữ bỏ GVCN để giáo viên nhận lớp 6 mới (`class_teacher_unique`); tên GVCN năm đó vẫn còn trong `class_year`. Tài khoản cờ đỏ của học sinh ra trường bị khóa (`active = false`), không xóa, để giữ `point.accountid`.

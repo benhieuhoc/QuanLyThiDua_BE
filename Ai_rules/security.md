@@ -1,6 +1,6 @@
 # Quy tắc bảo mật: Authentication, Authorization, phân cấp quyền
 
-> Đã triển khai: đăng nhập (`/auth`), quản lý tài khoản (`/accounts`), middleware `src/app/middleware/auth.ts` gắn cho mọi route (trừ `GET /`, `POST /auth/login`). File này là quy chuẩn bắt buộc. Khi thay đổi vai trò phải cập nhật file này và `code-map.md`.
+> Đã triển khai: đăng nhập (`/auth`), quản lý tài khoản (`/accounts`), middleware `src/app/middleware/auth.ts` gắn cho mọi route (trừ `GET /`, `POST /auth/login`, `/public/*`). File này là quy chuẩn bắt buộc. Khi thay đổi vai trò phải cập nhật file này và `code-map.md`.
 
 ## Authentication
 
@@ -41,6 +41,12 @@ Project chỉ có **2 role** (bảng `account`): `admin` và `user`. Role `user`
 - Kiểm tra quyền theo **dữ liệu sở hữu** ở service/controller, không chỉ theo role: cờ đỏ chỉ chấm lớp được phân công và chỉ sửa lượt mình nhập. Payload token chỉ có `{ id, role }`; `teacherid`/`studentid` tra từ bảng `account` theo `id`.
 - Không tin `role` hay `id` gửi từ body/query; chỉ dùng `req.user` lấy từ token.
 - Người dùng không được tự nâng quyền; chỉ `admin` được gán role.
+
+## Route công khai (`/public`)
+
+- `GET /public/classes/:id`: trang lớp cho phụ huynh mở qua mã QR (`BaseQRCode`), không đăng nhập.
+- Chỉ trả kết quả thi đua của lớp (điểm tuần, hạng, nội dung lượt cộng/trừ) và thông tin lớp (tên, phân hiệu, tên GVCN, sĩ số). **Không** trả danh sách học sinh, học sinh gắn vào lượt chấm, tài khoản / người nhập hay id giáo viên.
+- Thêm dữ liệu vào route public phải liệt kê cột cụ thể, không `SELECT *`.
 
 ## Khác
 

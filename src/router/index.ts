@@ -9,6 +9,7 @@ import pointRouter from './pointRouter';
 import scoreRouter from './scoreRouter';
 import authRouter from './authRouter';
 import accountRouter from './accountRouter';
+import publicRouter from './publicRouter';
 
 const express = require('express');
 const router = express.Router();
@@ -28,5 +29,6 @@ router.use('/points', pointRouter);
 router.use('/scores', scoreRouter);
 router.use('/auth', authRouter);
 router.use('/accounts', accountRouter);
+router.use('/public', publicRouter);
 
 export default router;

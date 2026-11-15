@@ -38,7 +38,7 @@ Luồng: `src/router/<entity>Router.ts` → `src/app/controller/<entity>Controll
 
 - `src/index.ts`: khởi tạo Express (parse JSON body, morgan, CORS allowlist gồm `http://localhost:3000`), kết nối pool và mount `src/router/index.ts` tại `/`.
 - `src/app/utils/http.ts`: `HttpError`, chuẩn response và map lỗi Postgres.
-- Middleware auth ở `src/app/middleware/auth.ts` (`authenticate`, `authorize`), hiện chỉ gắn cho `/auth` và `/accounts`. `swagger-jsdoc`/`swagger-ui-express` đã cài nhưng chưa được tích hợp.
+- Middleware auth ở `src/app/middleware/auth.ts` (`authenticate`, `authorize`), gắn cho mọi router trừ `GET /`, `POST /auth/login` và `/public` (trang lớp công khai cho phụ huynh qua mã QR). `swagger-jsdoc`/`swagger-ui-express` đã cài nhưng chưa được tích hợp.
 
 ### Mô hình dữ liệu (`cscript/init.sql`)
 
