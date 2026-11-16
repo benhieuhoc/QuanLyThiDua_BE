@@ -21,7 +21,7 @@ export const fetchWeeklyScore = async (weekid: number, filter: { branchid?: numb
     return { week, scores: result.rows };
 }
 
-// Tổng hợp nhiều tuần của 1 năm học (vd học kỳ); mặc định từ tuần 1 đến tuần đã bắt đầu gần nhất
+// Tổng hợp nhiều tuần của 1 năm học (vd học kỳ); mặc định từ tuần 1 đến tuần đã bắt đầu gần nhất; rank theo avg_total
 export const fetchSummaryScore = async (schoolyearid: number, filter: { fromweek?: number, toweek?: number, branchid?: number, gradeid?: number } = {}) => {
     const schoolYear = await checkSchoolYearExist(schoolyearid);
     if (!schoolYear) throw new HttpError(404, 'Không tìm thấy năm học');
@@ -44,7 +44,7 @@ export const fetchSummaryScore = async (schoolyearid: number, filter: { fromweek
                SUM(study_score)::int AS study_score,
                SUM(total)::int AS total,
                ROUND(AVG(total), 2)::float AS avg_total,
-               RANK() OVER (ORDER BY SUM(total) DESC)::int AS rank
+               RANK() OVER (ORDER BY ROUND(AVG(total), 2) DESC)::int AS rank
         FROM score_view
         WHERE schoolyearid = $1 AND numweek BETWEEN $2 AND $3
           AND ($4::int IS NULL OR branchid = $4)
@@ -108,7 +108,7 @@ export const fetchRankingPeriods = async (schoolyearid: number) => {
 }
 
 // Xếp hạng thi đua theo 1 tuần, 1 tháng, 1 học kỳ hoặc cả năm học
-// Chỉ tính các tuần đã bắt đầu; rank theo tổng điểm các tuần trong phạm vi lọc (cùng điểm cùng hạng)
+// Chỉ tính các tuần đã bắt đầu; rank theo điểm trung bình/tuần (avg_total) trong phạm vi lọc (cùng điểm cùng hạng)
 export const fetchRanking = async (schoolyearid: number, period: RankingPeriod, filter: { branchid?: number, gradeid?: number } = {}) => {
     const schoolYear = await checkSchoolYearExist(schoolyearid);
     if (!schoolYear) throw new HttpError(404, 'Không tìm thấy năm học');
@@ -141,7 +141,7 @@ export const fetchRanking = async (schoolyearid: number, period: RankingPeriod, 
                SUM(total)::int AS total,
                ROUND(AVG(total), 2)::float AS avg_total,
                SUM(entries)::int AS entries,
-               RANK() OVER (ORDER BY SUM(total) DESC)::int AS rank
+               RANK() OVER (ORDER BY ROUND(AVG(total), 2) DESC)::int AS rank
         FROM score_view
         WHERE weekid = ANY($1)
           AND ($2::int IS NULL OR branchid = $2)

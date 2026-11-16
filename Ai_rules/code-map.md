@@ -130,7 +130,7 @@ Một transaction, `LOCK TABLE school_year` rồi `LOCK TABLE class`:
 
 1. `fetchPeriodWeeks`: lấy các tuần của năm học kèm `month` = `to_char(startdate + 3, 'YYYY-MM')` (tháng chứa thứ Năm, tức tháng có nhiều ngày của tuần hơn), `semester` (= 1 nếu `numweek < semester2_week`), `started` (`startdate <= CURRENT_DATE`).
 2. Lọc tuần thuộc khoảng; không có tuần nào → 404; chưa tuần nào bắt đầu → 409.
-3. Gom `score_view` của các tuần **đã bắt đầu** theo lớp: tổng các cột điểm, `avg_total`, `entries`, `RANK() OVER (ORDER BY SUM(total) DESC)`.
+3. Gom `score_view` của các tuần **đã bắt đầu** theo lớp: tổng các cột điểm, `avg_total`, `entries`, `RANK() OVER (ORDER BY ROUND(AVG(total), 2) DESC)` (xếp theo điểm trung bình/tuần, làm tròn 2 số như `avg_total` để cùng số hiển thị thì cùng hạng; đổi từ tổng sang trung bình 2026-11-16 để lớp có ít tuần hơn không bị thiệt). `/scores/summary` cũng xếp theo trung bình.
 4. `fetchRankingPeriods` dùng cùng `fetchPeriodWeeks`, gom các tuần liên tiếp cùng tháng/học kỳ thành `{ value, label, fromweek, toweek, startdate, enddate }`.
 
 `/scores/weekly` và `/scores/summary` giữ nguyên cho tương thích; xếp hạng mới nên dùng `/scores/ranking`.

@@ -57,7 +57,7 @@ Tổng điểm    = Điểm Nề nếp + Điểm Học tập
 
 ### Quy tắc xếp hạng
 
-- Xếp theo tổng điểm, **cùng điểm cùng hạng** (1, 1, 3...). Xếp được trong toàn trường, theo phân hiệu, theo khối (hạng tính trong phạm vi lọc).
+- Xếp theo **điểm trung bình/tuần** (`avg_total`, làm tròn 2 chữ số) của các tuần đã tính trong khoảng, **cùng điểm cùng hạng** (1, 1, 3...). Với 1 tuần thì trung bình = tổng. Xếp được trong toàn trường, theo phân hiệu, theo khối (hạng tính trong phạm vi lọc).
 - Xếp hạng theo **1 khoảng** của năm học: 1 tuần, 1 tháng, 1 học kỳ hoặc cả năm học (`GET /scores/ranking`). Cùng khoảng đó xuất được file Excel (`GET /scores/export`); file tuần có thêm cột chi tiết các lượt cộng / trừ (không ghi tên học sinh). Điểm của khoảng = cộng điểm các tuần trong khoảng, kèm điểm trung bình/tuần.
 - **Chỉ tính các tuần đã bắt đầu** (ngày bắt đầu ≤ hôm nay), để tuần tương lai (chỉ có điểm gốc) không làm sai tổng. Tháng/học kỳ đang diễn ra thì response cho biết đã tính bao nhiêu tuần (`countedweeks` / `numweeks`). Khoảng chưa có tuần nào bắt đầu trả `409`.
 - **Tháng**: mỗi tuần thuộc tháng chứa ngày thứ Năm của tuần (tháng có nhiều ngày của tuần hơn), nên mỗi tuần thuộc đúng 1 tháng. Ví dụ tuần 28/09–04/10/2026 thuộc tháng 10.
@@ -280,7 +280,7 @@ GET /scores/ranking?schoolyearid=1&month=2026-10&branchid=1
  │   ├─ Lấy các tuần của năm học kèm tháng (theo thứ Năm), học kỳ, đã bắt đầu chưa
  │   ├─ Lọc tuần thuộc khoảng; không có tuần nào                              → 404
  │   ├─ Chưa tuần nào bắt đầu                                                 → 409
- │   └─ Cộng điểm score_view của các tuần đã bắt đầu theo lớp, RANK() theo tổng
+ │   └─ Cộng điểm score_view của các tuần đã bắt đầu theo lớp, RANK() theo điểm trung bình/tuần
  └─ 200 { schoolyear, period, scores[] }
 ```
 
@@ -692,7 +692,7 @@ type PeriodWeek = { id: number; numweek: number; startdate: string; enddate: str
 ```
 
 - Chọn năm học → **Tuần | Tháng | Học kỳ | Cả năm** → ô chọn lấy từ `/scores/periods` (mặc định phần tử cuối có `started`); `week` là `numweek`, không phải `weekid`. Cả năm gửi `year=1`. Lọc thêm phân hiệu / khối (hạng tính trong phạm vi lọc).
-- Bảng: hạng, lớp, GVCN, Nề nếp, Học tập, tổng, TB / tuần; hiện "Đã tính X/Y tuần" khi `countedweeks < numweeks`.
+- Bảng: hạng, lớp, GVCN, Nề nếp, Học tập, tổng, TB / tuần (**hạng xếp theo TB / tuần**); hiện "Đã tính X/Y tuần" khi `countedweeks < numweeks`.
 - 409 (khoảng chưa bắt đầu) hiện trạng thái rỗng thay vì lỗi; có thể ẩn / khóa các mục chưa `started`.
 - Lỗi 400 của `/scores/ranking` và `/scores/export`: "schoolyearid không hợp lệ", "Chọn đúng 1 trong week, month, semester, year", "week là số tuần 1-60", "month dạng YYYY-MM", "semester là 1 hoặc 2", "year là 1 (cả năm học)", "branchid/gradeid không hợp lệ". 404: năm học / khoảng không tồn tại ("Năm học 2026-2027 không có tháng 1/2025").
 - Trang năm học có ô "Tuần bắt đầu học kỳ 2" (`semester2_week`, 2..numweeks; PUT `null` = về mặc định).
@@ -819,4 +819,5 @@ type PublicClassPage = {
 | 2026-11-09 | Chuyển năm học / lên lớp, lớp ra trường (`archived`), `grade6`, `promotion`; DB chỉ còn `cscript/init.sql` | 4.7, 9.7 |
 | 2026-11-09 | Xếp hạng cả năm (`year=1`), `period.weekids`, xuất Excel `/scores/export` | 9.6, 9.8 |
 | 2026-11-15 | Lớp có `BaseQRCode` (`/LopHoc/<id>`); API công khai `GET /public/classes/:id` cho phụ huynh xem kết quả thi đua qua mã QR | 9.10 |
+| 2026-11-16 | Xếp hạng tháng / học kỳ / cả năm (`/scores/ranking`, `/scores/summary`, `/scores/export`) xếp theo `avg_total` (TB / tuần) thay vì `total`; response không đổi, FE nên làm nổi cột TB / tuần | 9.6 |
 | 2026-11-16 | **Breaking**: link công khai đổi sang mã ngẫu nhiên `qrcode` (`BaseQRCode: /LopHoc/<qrcode>`, `GET /public/classes/:qrcode`), link theo id không còn dùng; `points[].students: { name }[]`; admin đổi mã `PUT /classes/:id/qrcode`. Chạy lại `cscript/init.sql` để thêm cột `class.qrcode` | 9.10 |

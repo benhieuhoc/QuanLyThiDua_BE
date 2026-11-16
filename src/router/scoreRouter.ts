@@ -18,7 +18,7 @@ router.get('/weekly', getWeeklyScore);
 
 // GET /scores/summary?schoolyearid=&fromweek=&toweek=&branchid=&gradeid=
 // schoolyearid bắt buộc; fromweek mặc định 1, toweek mặc định tuần đã bắt đầu gần nhất
-// Trả { schoolyear, fromweek, toweek, scores[] }, mỗi lớp có weeks, conduct_score, study_score, total, avg_total, rank
+// Trả { schoolyear, fromweek, toweek, scores[] }, mỗi lớp có weeks, conduct_score, study_score, total, avg_total, rank (theo avg_total)
 // 400 query sai / fromweek > toweek, 404 không tìm thấy năm học
 router.get('/summary', getSummaryScore);
 
@@ -28,7 +28,7 @@ router.get('/summary', getSummaryScore);
 //   | year: 1 (hoặc true) = cả năm học
 // Chỉ tính các tuần đã bắt đầu. Trả { schoolyear, period, scores[] }:
 //   period = { type, value, label, fromweek, toweek, startdate, enddate, numweeks, countedweeks, weekids[] } (year: value = null)
-//   mỗi lớp có weeks, conduct_plus/minus/score, study_plus/minus/score, total, avg_total, entries, rank (theo total, cùng điểm cùng hạng)
+//   mỗi lớp có weeks, conduct_plus/minus/score, study_plus/minus/score, total, avg_total, entries, rank (theo avg_total, cùng điểm cùng hạng)
 // 400 query sai, 404 không tìm thấy năm học / năm học không có khoảng đó, 409 khoảng chưa bắt đầu
 router.get('/ranking', getRanking);
 

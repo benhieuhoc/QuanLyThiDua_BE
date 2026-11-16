@@ -5,7 +5,7 @@ import { checkBranchExist } from "./branchService";
 import { checkGradeExist } from "./gradeService";
 
 // Xuất bảng điểm thi đua ra file Excel (.xlsx) theo tuần / tháng / học kỳ / cả năm học
-// Số liệu lấy từ fetchRanking (cùng số liệu với GET /scores/ranking): chỉ tính tuần đã bắt đầu, rank theo tổng
+// Số liệu lấy từ fetchRanking (cùng số liệu với GET /scores/ranking): chỉ tính tuần đã bắt đầu, rank theo điểm trung bình/tuần
 // Riêng file tuần có thêm điểm gốc từng phần và cột "Chi tiết cộng / trừ" (mỗi lượt 1 dòng, không kèm học sinh)
 
 const formatDate = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(0, 4)}`;
