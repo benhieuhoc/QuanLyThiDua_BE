@@ -26,7 +26,7 @@ Khi các file này mâu thuẫn với code hiện tại, làm theo `Ai_rules/` v
 - `npm start`: chạy `node dist/server.js`, nhưng entry point là `src/index.ts` (khi build sẽ ra `dist/index.js`), nên script này không khớp với kết quả build.
 - Chưa có test runner hay linter (`npm test` chỉ là placeholder).
 
-Database chỉ có một file `cscript/init.sql`: phần 1 tạo bảng / view, phần 2 nạp dữ liệu giai đoạn đầu (55 lớp + GVCN, 2493 học sinh, năm học 2026-2027, tài khoản `admin` mật khẩu `1`). Chạy thủ công `psql -U postgres -d QLHS -f cscript/init.sql` (không có công cụ migration); chạy lại được, không xóa dữ liệu, dùng luôn để nâng cấp schema DB cũ.
+Database chỉ có một file `cscript/init.sql`: phần 1 tạo bảng / view, phần 2 nạp dữ liệu chụp từ DB dev (55 lớp + GVCN + mã QR, 2493 học sinh, năm học 2026-2027 khóa tuần 1–10, 2271 lượt chấm tuần 1–10, tài khoản `admin` mật khẩu `1` + 3 GVCN + 3 cờ đỏ, xem `docs/tai-khoan-dev.md`). Chạy thủ công `psql -U postgres -d QLHS -f cscript/init.sql` (không có công cụ migration); chạy lại được, không xóa dữ liệu, dùng luôn để nâng cấp schema DB cũ.
 
 ## Cấu hình
 

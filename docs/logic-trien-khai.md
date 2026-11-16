@@ -554,7 +554,7 @@ Trang được vào theo `kind` xem mục 3.
 
 ## 7. Dữ liệu giai đoạn đầu (`cscript/init.sql`)
 
-DB mới chạy `init.sql` (cập nhật 2026-11-09) có:
+DB mới chạy `init.sql` (cập nhật 2026-11-16, chụp từ DB dev `QLHS`) có:
 
 | Dữ liệu | Số lượng | Nguồn |
 |---|---|---|
@@ -562,9 +562,10 @@ DB mới chạy `init.sql` (cập nhật 2026-11-09) có:
 | Lớp | 55 (A: 34 lớp, B: 21 lớp; 6A1–9B6) | Danh sách học sinh thật của trường (Google Sheet) |
 | Học sinh | 2493, chỉ lưu mã, họ tên, ngày sinh, giới tính | Cùng Google Sheet; không lưu căn cước, số điện thoại, địa chỉ, thông tin cha mẹ |
 | Giáo viên | 55, mỗi lớp 1 GVCN (Trần Thị Ngọc Hà chủ nhiệm 6A2 và 7A4 nên có 2 bản ghi trùng tên) | Danh sách GVCN của nhà trường |
-| Năm học | 2026-2027, 35 tuần từ 07/09/2026, điểm gốc 100/100, HK2 mặc định (tuần 19), chưa khóa tuần nào | Sinh trong `init.sql` |
-| Lượt chấm | 0 | Nhập qua giao diện chấm điểm |
-| Tài khoản | 1: `admin`, mật khẩu `1` | `init.sql`; GVCN / cờ đỏ tạo qua trang **Tài khoản** (xem [tai-khoan-dev.md](tai-khoan-dev.md)) |
+| Năm học | 2026-2027, 35 tuần từ 07/09/2026, điểm gốc 100/100, HK2 mặc định (tuần 19), tuần 1–10 đã khóa | Sinh trong `init.sql` |
+| Lớp: mã QR | Giữ đúng `qrcode` của từng lớp trên DB dev, link QR đã in vẫn dùng được | `init.sql` |
+| Lượt chấm | 2271 lượt tuần 1–10 (2741 học sinh gắn kèm); chỉ nạp vào tuần chưa có lượt chấm | Dữ liệu chấm trên DB dev |
+| Tài khoản | 7: `admin` (mật khẩu `1`), 3 GVCN, 3 cờ đỏ + 7 phân công lớp | `init.sql`; danh sách ở [tai-khoan-dev.md](tai-khoan-dev.md) |
 
 Dữ liệu học sinh là thông tin cá nhân thật: `init.sql` không đưa lên repo công khai, không dùng làm dữ liệu mẫu trong tài liệu ngoài vài ví dụ minh họa.
 

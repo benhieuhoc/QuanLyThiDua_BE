@@ -161,7 +161,7 @@ Một transaction, `LOCK TABLE school_year` rồi `LOCK TABLE class`:
 | `class_year` | Ảnh chụp tên / khối / GVCN của lớp trong năm học đã lên lớp, `score_view` dùng cho năm cũ | ✅ |
 | `point.accountid` | Người nhập lượt chấm (`ON DELETE SET NULL`), ghi ở `createPoint` | ✅ |
 
-SQL: chỉ một file `cscript/init.sql` (phần 1 schema, phần 2 dữ liệu giai đoạn đầu: 55 lớp + GVCN theo danh sách nhà trường, 2493 học sinh, năm học 2026-2027, `admin`), xem `database.md`.
+SQL: chỉ một file `cscript/init.sql` (phần 1 schema, phần 2 dữ liệu giai đoạn đầu: 55 lớp + GVCN theo danh sách nhà trường, 2493 học sinh, năm học 2026-2027 (tuần 1–10 đã khóa), 7 tài khoản + phân công cờ đỏ, 2271 lượt chấm tuần 1–10, mã QR lớp), xem `database.md`.
 
 ## Quyết định thiết kế
 
@@ -169,7 +169,7 @@ SQL: chỉ một file `cscript/init.sql` (phần 1 schema, phần 2 dữ liệu 
 - Tên lớp không lưu trong DB; tính trong `class_view` (`numgrade` + `branch.code` + `seq`), nên đổi mã phân hiệu thì tên lớp tự đổi.
 - Insert hàng loạt: một câu INSERT với placeholder `($1),($2),...` (mẫu ở `createTeacher`).
 - Xóa có dữ liệu con trả 409 thay vì để CASCADE xóa dây chuyền.
-- Schema và dữ liệu khởi tạo gom vào 1 file `cscript/init.sql` (2026-11-09, thay `migration.sql`, `seed.sql`, `data-dev.sql`, `update-gvcn.sql`). Dữ liệu nạp theo khóa tự nhiên (tên lớp, mã học sinh) để chạy lại được và không phụ thuộc id; bỏ lượt chấm test và tài khoản dev `gvcn.*` / `codo.*`.
+- Schema và dữ liệu khởi tạo gom vào 1 file `cscript/init.sql` (2026-11-09, thay `migration.sql`, `seed.sql`, `data-dev.sql`, `update-gvcn.sql`). Dữ liệu nạp theo khóa tự nhiên (tên lớp, mã học sinh) để chạy lại được và không phụ thuộc id. Từ 2026-11-16 phần 2 là ảnh chụp toàn bộ DB dev (thêm lại tài khoản `gvcn.*` / `codo.*` / `nkn.codo`, phân công, lượt chấm tuần 1–10, khóa tuần, mã QR) theo yêu cầu người dùng; lượt chấm chỉ nạp vào tuần trống để chạy lại không nhân đôi.
 - Bỏ bảng `point_less`; `point` đổi từ "điểm theo loại" sang "lượt cộng/trừ" (nhập tự do theo yêu cầu nghiệp vụ). Điểm tuần không lưu mà tính trong `score_view`, nên sửa điểm gốc hay lượt chấm thì bảng điểm tự cập nhật.
 - Học kỳ lưu bằng 1 cột `school_year.semester2_week` (tuần bắt đầu HK2, null = nửa đầu năm làm tròn lên thuộc HK1); tháng không lưu mà suy từ ngày thứ Năm của tuần để mỗi tuần thuộc đúng 1 tháng. Xếp hạng chỉ tính tuần đã bắt đầu để tuần tương lai (chỉ có điểm gốc) không làm sai tổng.
 - `week` không có API tạo/xóa riêng: tuần sinh/xóa qua `POST`/`PUT /school-years` để luôn liên tiếp, không chồng ngày.

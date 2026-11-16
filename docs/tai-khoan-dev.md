@@ -2,18 +2,19 @@
 
 Tài khoản đăng nhập trên DB dev `QLHS`. **Chỉ dùng cho môi trường dev, không dùng trên production.**
 
-Cập nhật: 2026-11-04
+Cập nhật: 2026-11-16
 
-**Mật khẩu tất cả tài khoản: `1`**
+**Mật khẩu: `1`** (trừ `nkn.codo`: mật khẩu đã đặt riêng, `init.sql` giữ nguyên hash)
 
 | Tên đăng nhập | Loại (`kind`) | Role | Người dùng | Lớp của người dùng | Được chấm điểm |
 |---|---|---|---|---|---|
 | `admin` | Quản lý nề nếp (`admin`) | `admin` | (không gắn giáo viên) | — | Toàn trường |
-| `gvcn.6a1` | GVCN (`gvcn`) | `user` | Nguyễn Văn An (CN) | Chủ nhiệm 6A1 | Không (chỉ xem) |
-| `gvcn.7a1` | GVCN (`gvcn`) | `user` | Đỗ Văn Khánh | Chủ nhiệm 7A1 | Không (chỉ xem) |
-| `gvcn.6b1` | GVCN (`gvcn`) | `user` | Dương Văn Minh | Chủ nhiệm 6B1 | Không (chỉ xem) |
+| `gvcn.6a1` | GVCN (`gvcn`) | `user` | Lê Thị Hương Lan | Chủ nhiệm 6A1 | Không (chỉ xem) |
+| `gvcn.7a1` | GVCN (`gvcn`) | `user` | Trần Thị Hoài Linh | Chủ nhiệm 7A1 | Không (chỉ xem) |
+| `gvcn.6b1` | GVCN (`gvcn`) | `user` | Phan Thị Vân | Chủ nhiệm 6B1 | Không (chỉ xem) |
 | `codo.duc` | Cờ đỏ (`codo`) | `user` | HS Bùi Thị Vân Anh | Học lớp 7A1 | 6A1, 6A2 |
 | `codo.ha` | Cờ đỏ (`codo`) | `user` | HS Nguyễn Thế Trường An | Học lớp 6A2 | 7A1 |
+| `nkn.codo` | Cờ đỏ (`codo`) | `user` | HS Nguyễn Khánh Ngọc | Học lớp 9A1 | 9A2, 9A3, 9A4, 9A5 |
 
 ## Mỗi loại tài khoản làm được gì
 
@@ -29,7 +30,7 @@ Chi tiết quyền: [Ai_rules/security.md](../Ai_rules/security.md).
 
 - Tên đăng nhập không phân biệt hoa thường.
 - Mật khẩu `1` được đặt thẳng trong DB. Mật khẩu tạo hoặc đổi qua API / giao diện (tạo tài khoản, đặt lại, đổi mật khẩu) phải **từ 6 ký tự**.
-- Từ 2026-11-09, [cscript/init.sql](../cscript/init.sql) chỉ tạo tài khoản `admin` (mật khẩu `1`). Các tài khoản `gvcn.*`, `codo.*` trong bảng trên chỉ còn trên DB dev cũ; DB mới tạo lại qua trang **Tài khoản** (`POST /accounts`, mật khẩu từ 6 ký tự).
+- Từ 2026-11-16, [cscript/init.sql](../cscript/init.sql) tạo đủ các tài khoản trong bảng trên kèm phân công lớp cờ đỏ (username đã có thì bỏ qua), nên DB mới chạy `init.sql` đăng nhập được ngay.
 - Tài khoản tạo thêm qua trang **Tài khoản** không tự cập nhật vào file này; nhớ ghi thêm nếu muốn tra cứu.
 
 ## Xem lại / đặt lại mật khẩu
