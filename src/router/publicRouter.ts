@@ -16,7 +16,7 @@ const router = express.Router();
 //   schoolyears[] = { id, name, startdate, enddate, classname (tên lớp năm đó), started } (mới nhất trước)
 //   weeks[] (chỉ tuần đã bắt đầu, mới nhất trước) = { weekid, numweek, startdate, enddate, locked, classname, teachername,
 //     conduct_base/plus/minus/score, study_base/plus/minus/score, total, entries, rank (toàn trường), numclasses,
-//     points[]: { type, content, value, students: { name }[] (họ tên học sinh được gắn, [] nếu không có) } }
+//     points[]: { type, content, value, pointdate ('YYYY-MM-DD', ngày diễn ra), students: { name }[] (họ tên học sinh được gắn, [] nếu không có) } }
 //   Lớp chưa có năm học nào: schoolyear = null, weeks = []
 // 400 schoolyearid sai, 404 mã sai / không tìm thấy lớp / lớp không có ở năm học đó
 router.get('/classes/:qrcode', getPublicClassScore);

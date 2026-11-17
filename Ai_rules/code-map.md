@@ -11,7 +11,7 @@ Trạng thái: ✅ hoàn thành · 🚧 đang làm / còn lỗi · ⬜ chưa là
 ```
 src/index.ts  (express.json → morgan → cors)
   └─ src/router/index.ts            mount /branches, /grades, /teachers, /classes, /students,
-       │                            /school-years, /weeks, /points, /scores, /auth, /accounts, /public
+       │                            /school-years, /weeks, /points, /rules, /scores, /auth, /accounts, /public
        └─ src/router/<entity>Router.ts
             └─ authenticate → authorize(...roles)   src/app/middleware/auth.ts
                                     ✅ mọi router (trừ GET /, POST /auth/login và /public); route ghi nghiệp vụ authorize('admin');
@@ -65,11 +65,16 @@ Cột "Quyền" là quyền đã gắn (`security.md`): `authenticate` ở đầ
 | GET | `/weeks/current` | `weekController.getCurrentWeek` — 404 nếu hôm nay ngoài mọi tuần | admin, user | ✅ |
 | GET | `/weeks/:id` | `weekController.getWeek` | admin, user | ✅ |
 | PUT | `/weeks/:id` | `weekController.putWeek` — body `{ conduct_base?, study_base?, locked?, applyToNext? }` | admin | ✅ |
-| GET | `/points?weekid=&classid=&type=&studentid=` | `pointController.getPoints` — kèm `students[]` | admin, user | ✅ |
+| GET | `/points?weekid=&classid=&type=&studentid=&ruleid=` | `pointController.getPoints` — kèm `students[]`, `rulecontent`, `pointdate`, `entereddate`, `enteredtime`; sắp theo tuần → lớp → `pointdate` → `created_at` | admin, user | ✅ |
 | GET | `/points/:id` | `pointController.getPoint` | admin, user | ✅ |
-| POST | `/points` | `pointController.postPoint` — body `{ weekid, classid, type, content, value, studentIds? }`; ghi `accountid`; 403 lớp không được chấm, 409 tuần đã khóa | admin mọi lớp · cờ đỏ lớp được phân công (trừ lớp mình) · GVCN 403 (chỉ xem) | ✅ |
-| PUT | `/points/:id` | `pointController.putPoint` — body `{ type?, content?, value?, studentIds? }` (mảng = thay toàn bộ) | admin mọi lượt · cờ đỏ chỉ lượt mình nhập, lớp còn được phân công · GVCN 403 | ✅ |
+| POST | `/points` | `pointController.postPoint` — body `{ weekid, classid, ruleid?, type?, content?, value?, pointdate?, studentIds? }` (có `ruleid` thì trường thiếu lấy theo mục, không có thì `type`/`content`/`value` bắt buộc; `ruleid: null` → 400); ghi `accountid`; 400 `type` khác phần của mục / `pointdate` ngoài tuần, 403 lớp không được chấm, 404 mục quy chế, 409 tuần đã khóa / mục đã ngừng áp dụng | admin mọi lớp · cờ đỏ lớp được phân công (trừ lớp mình) · GVCN 403 (chỉ xem) | ✅ |
+| PUT | `/points/:id` | `pointController.putPoint` — body `{ ruleid?, type?, content?, value?, pointdate?, studentIds? }` (`ruleid`: bỏ = giữ, `null` = bỏ liên kết, số = đổi mục; mảng `studentIds` = thay toàn bộ) | admin mọi lượt · cờ đỏ chỉ lượt mình nhập, lớp còn được phân công · GVCN 403 | ✅ |
 | DELETE | `/points/:id` | `pointController.removePoint` | như PUT | ✅ |
+| GET | `/rules?type=&active=` | `ruleController.getRules` — quy chế thi đua kèm `uses`; `active` chỉ nhận `'true'`/`'false'`; sắp `type DESC, value, content` | admin, user | ✅ |
+| GET | `/rules/:id` | `ruleController.getRule` | admin, user | ✅ |
+| POST | `/rules` | `ruleController.postRule` — body `{ type, content, value, active? }`; 409 trùng `(type, content)` | admin | ✅ |
+| PUT | `/rules/:id` | `ruleController.putRule` — body `{ type?, content?, value?, active? }`; không đổi lượt chấm đã gắn | admin | ✅ |
+| DELETE | `/rules/:id` | `ruleController.removeRule` — 409 nếu đã dùng (`uses > 0`), gợi ý `active = false` | admin | ✅ |
 | GET | `/scores/weekly?weekid=&branchid=&gradeid=` | `scoreController.getWeeklyScore` — bảng điểm + rank 1 tuần | admin, user | ✅ |
 | GET | `/scores/summary?schoolyearid=&fromweek=&toweek=&branchid=&gradeid=` | `scoreController.getSummaryScore` — tổng hợp nhiều tuần | admin, user | ✅ |
 | GET | `/scores/ranking?schoolyearid=&week=\|month=\|semester=\|year=1&branchid=&gradeid=` | `scoreController.getRanking` — xếp hạng theo tuần / tháng / học kỳ / cả năm; `period.weekids[]` | admin, user | ✅ |
@@ -98,9 +103,10 @@ Cột "Quyền" là quyền đã gắn (`security.md`): `authenticate` ở đầ
 | `studentService.ts` | `GENDERS`, `fetchAllStudent(filter)` (filter `classIds` để giới hạn cờ đỏ; không có `classid` thì bỏ lớp lưu trữ), `checkStudentExist`, `checkListStudentExist`, `createStudent(classid, students)`, `updateStudent`, `deleteStudent` | student, class_view, point_student | Thêm hàng loạt vào 1 lớp; chuyển lớp bằng đổi `classid`; dùng `getClassById` + `assertClassActive` để kiểm tra lớp đích |
 | `schoolYearService.ts` | `fetchAllSchoolYear`, `checkSchoolYearExist`, `createSchoolYear(..., grade6?)`, `updateSchoolYear`, `deleteSchoolYear` | school_year, week, class_year, class | Tạo/đổi số tuần trong transaction + `LOCK TABLE school_year`; chặn chồng thời gian giữa các năm học; tạo năm học chỉ khi năm mới nhất đã kết thúc và gọi `promoteClasses` trong cùng transaction (xem luồng lên lớp); `semester2_week` trả giá trị hiệu lực (null → `CEIL(numweeks/2)+1`), phải nằm trong 2..numweeks |
 | `weekService.ts` | `fetchAllWeek(schoolyearid?)`, `checkWeekExist`, `fetchCurrentWeek`, `checkWeekOpen`, `updateWeek` | week | `checkWeekOpen` dùng chung để chặn sửa điểm tuần đã khóa (409) |
-| `pointService.ts` | `POINT_TYPES`, `fetchAllPoint(filter)`, `checkPointExist`, `createPoint(actor, ...)`, `updatePoint(actor, ...)`, `deletePoint(actor, ...)` | point, point_student, student, class_view, week, account | Kèm `classteacherid`, `accountusername`; GVCN bị chặn bằng `assertNotViewOnly`; quyền theo lớp bằng `canScoreClass` + `assertCanManagePoint` (403 trước 409 tuần khóa); lượt cộng/trừ nhập tự do; gắn học sinh qua `point_student` (tạo/sửa trong transaction, học sinh mới gắn phải thuộc lớp của lượt chấm, dùng `checkListStudentExist`) |
+| `pointService.ts` | `POINT_TYPES`, `PointInput`, `fetchAllPoint(filter)` (lọc thêm `ruleid`), `checkPointExist`, `createPoint(actor, weekid, classid, input, studentIds)`, `updatePoint(actor, id, input, studentIds?)`, `deletePoint(actor, ...)` | point, point_student, student, class_view, week, account, rule | Kèm `classteacherid`, `accountusername`, `entereddate` / `enteredtime` (`created_at` theo giờ `Asia/Ho_Chi_Minh`, `'YYYY-MM-DD'` / `'HH:mm'`), `rulecontent` (LEFT JOIN `rule`), `pointdate`; GVCN bị chặn bằng `assertNotViewOnly`; quyền theo lớp bằng `canScoreClass` + `assertCanManagePoint` (403 trước 409 tuần khóa); lượt cộng/trừ nhập tự do hoặc theo mục quy chế: `loadRule` (404 / 409 mục ngừng áp dụng, trừ mục đang gắn sẵn), `assertRuleType` (400 `type` khác phần của mục); `pointdate`: `assertDateInWeek` (400 ngoài tuần, `week` lấy từ `checkWeekOpen`), `defaultPointDate` (hôm nay giờ local kẹp vào tuần) khi POST không gửi, PUT không gửi thì giữ; gắn học sinh qua `point_student` (tạo/sửa trong transaction, học sinh mới gắn phải thuộc lớp của lượt chấm, dùng `checkListStudentExist`) |
+| `ruleService.ts` | `fetchAllRule({ type?, active? })`, `checkRuleExist`, `createRule`, `updateRule`, `deleteRule` | rule, point | Quy chế thi đua; mỗi mục kèm `uses` (số lượt chấm có `ruleid` = mục, `::int`); sắp `type DESC, value, content`; xóa mục `uses > 0` → 409 (gợi ý `active = false`); trùng `(type, content)` để lỗi 23505 map 409 |
 | `accountService.ts` | `ROLES`, `Actor`, `fetchAllAccount(filter)`, `checkAccountExist`, `fetchAuthAccount`, `fetchAssignedClassIds`, `canScoreClass`, `login`, `changePassword`, `createAccount`, `updateAccount`, `deleteAccount`, `replaceAccountClasses` | account, account_class, teacher, student, class_view | Không SELECT `password` ra ngoài (`selectAccount` liệt kê cột); `kind` = admin / gvcn / codo; login sai username vẫn chạy bcrypt với hash giả; luôn còn ≥ 1 admin hoạt động; không tự khóa / xóa mình; cờ đỏ không được phân công lớp của mình hay lớp lưu trữ (409) |
-| `scoreService.ts` | `fetchWeeklyScore`, `fetchSummaryScore`, `fetchClassScore`, `fetchRanking` (khoảng `week`/`month`/`semester`/`year`), `fetchRankingPeriods`, `fetchWeekPointDetails(weekid)`, `fetchPublicClassScore(qrcode, schoolyearid?)` | score_view, week, point, point_student, student, school_year | Chỉ đọc; rank bằng `RANK() OVER` (cùng điểm cùng hạng). Xem mục xếp hạng theo khoảng bên dưới |
+| `scoreService.ts` | `fetchWeeklyScore`, `fetchSummaryScore`, `fetchClassScore`, `fetchRanking` (khoảng `week`/`month`/`semester`/`year`), `fetchRankingPeriods`, `fetchWeekPointDetails(weekid)`, `fetchPublicClassScore(qrcode, schoolyearid?)` | score_view, week, point, point_student, student, school_year | Chỉ đọc; rank bằng `RANK() OVER` (cùng điểm cùng hạng). Xem mục xếp hạng theo khoảng bên dưới. Lượt chấm (Excel, trang công khai) sắp theo phần → `pointdate` → `created_at`; trang công khai trả `points[].pointdate` |
 | `scoreExportService.ts` | `buildScoreWorkbook(schoolyearid, period, filter)` → `{ filename, buffer }` | (qua `fetchRanking`, `fetchWeekPointDetails`, `checkBranchExist`, `checkGradeExist`) | Dựng file Excel bằng `exceljs`: dòng 1–3 tiêu đề / năm học + khoảng ngày + phạm vi / ghi chú, header 2 tầng (Nề nếp, Học tập), cố định cột Hạng–Lớp và header, in ngang vừa 1 trang ngang. Không đụng `res` |
 
 ### Luồng tạo lớp hàng loạt (`batchCreateClass`)
@@ -121,7 +127,7 @@ Một transaction, `LOCK TABLE school_year` rồi `LOCK TABLE class`:
 ### Tính điểm thi đua (`score_view`)
 
 - Mỗi tuần (`week`) có `conduct_base` (Nề nếp) và `study_base` (Học tập), mặc định 100, sinh khi tạo năm học.
-- `point` là lượt cộng/trừ nhập tự do: `value < 0` trừ, `value > 0` cộng.
+- `point` là lượt cộng/trừ nhập tự do hoặc chọn từ quy chế (`ruleid`, chép `type`/`content`/`value` của mục): `value < 0` trừ, `value > 0` cộng; `pointdate` là ngày diễn ra trong tuần.
 - `score_view` = `week` × `class_view` LEFT JOIN `point`: `conduct_score = conduct_base + Σ value (Nề nếp)`, tương tự `study_score`; `total = conduct_score + study_score`; `*_plus`/`*_minus` là tổng cộng / tổng trừ (số dương).
 - Lớp của từng năm: năm có `class_year` (đã lên lớp) chỉ gồm các lớp trong ảnh chụp, `classname`/`gradeid`/`numgrade`/`teacherid`/`teachername` lấy từ ảnh chụp; năm chưa có (năm hiện tại) gồm các lớp đang học (`archivedyearid IS NULL`).
 - Tuần `locked = true` thì không tạo/sửa/xóa `point` và không đổi điểm gốc (trừ khi mở khóa cùng request).
@@ -147,7 +153,7 @@ Một transaction, `LOCK TABLE school_year` rồi `LOCK TABLE class`:
 | File | Mục đích | Trạng thái |
 |---|---|---|
 | `src/app/middleware/auth.ts` → `authenticate` | Đọc `Authorization: Bearer`, verify JWT, tra lại `account` mỗi request (bị khóa / xóa → 401 ngay), gắn `req.user = { id, role, kind, teacherid, studentid, studentclassid }` (lấy từ DB) | ✅ mọi router (`router.use`), trừ `GET /`, `POST /auth/login`, `/public` (`publicRouter.ts`) |
-| `src/app/middleware/auth.ts` → `authorize(...roles)` | Kiểm tra `req.user.role`, sai → 403 | ✅ route ghi của branch/teacher/class/student/school-year/week, toàn bộ `/accounts` |
+| `src/app/middleware/auth.ts` → `authorize(...roles)` | Kiểm tra `req.user.role`, sai → 403 | ✅ route ghi của branch/teacher/class/student/school-year/week/rule, toàn bộ `/accounts` |
 | Quyền theo dữ liệu sở hữu | `pointService` (chấm điểm), `studentController` / `classController` (cờ đỏ xem học sinh) | ✅ |
 
 ## Bảng tài khoản
@@ -160,8 +166,11 @@ Một transaction, `LOCK TABLE school_year` rồi `LOCK TABLE class`:
 | `class.archivedyearid` | Năm học lớp ra trường (lưu trữ khi lên lớp), null = đang học; unique `(gradeid, branchid, seq)` chỉ áp cho lớp đang học (`class_active_unique`) | ✅ |
 | `class_year` | Ảnh chụp tên / khối / GVCN của lớp trong năm học đã lên lớp, `score_view` dùng cho năm cũ | ✅ |
 | `point.accountid` | Người nhập lượt chấm (`ON DELETE SET NULL`), ghi ở `createPoint` | ✅ |
+| `rule` | Quy chế thi đua: mục cộng/trừ mẫu (`type`, `content`, `value` ≠ 0, `active`), unique `(type, content)`; 41 mục mặc định nạp ở phần 2 `init.sql` | ✅ |
+| `point.ruleid` | Mục quy chế đã chọn (`fk_point_rule` `ON DELETE SET NULL`, index `point_rule_idx`), null = nhập tự do | ✅ |
+| `point.pointdate` | Ngày diễn ra (`date NOT NULL DEFAULT CURRENT_DATE`), phải nằm trong tuần (kiểm tra ở service); `point.created_at` / `updated_at` là `timestamptz` | ✅ |
 
-SQL: chỉ một file `cscript/init.sql` (phần 1 schema, phần 2 dữ liệu giai đoạn đầu: 55 lớp + GVCN theo danh sách nhà trường, 2493 học sinh, năm học 2026-2027 (tuần 1–10 đã khóa), 7 tài khoản + phân công cờ đỏ, 2271 lượt chấm tuần 1–10, mã QR lớp), xem `database.md`.
+SQL: chỉ một file `cscript/init.sql` (phần 1 schema, phần 2 dữ liệu giai đoạn đầu: 55 lớp + GVCN theo danh sách nhà trường, 2493 học sinh, năm học 2026-2027 (tuần 1–10 đã khóa), 7 tài khoản + phân công cờ đỏ, 2271 lượt chấm tuần 1–10, mã QR lớp, 41 mục quy chế thi đua), xem `database.md`.
 
 ## Quyết định thiết kế
 
@@ -185,3 +194,5 @@ SQL: chỉ một file `cscript/init.sql` (phần 1 schema, phần 2 dữ liệu 
 - Trang công khai cho phụ huynh (2026-11-15): `BaseQRCode` = `/LopHoc/<qrcode>`, FE ghép domain FE rồi render mã QR. Router riêng `/public` không qua `authenticate`; `fetchPublicClassScore` chỉ chọn cột cần thiết, không trả danh sách học sinh, `accountid`, `teacherid`.
 - Hiện họ tên học sinh gắn vào lượt chấm trên trang công khai (2026-11-16, người dùng xác nhận, cả lượt cộng và trừ): chỉ trả `name`, không id / mã / ngày sinh. Vì vậy link công khai đổi từ id lớp sang `class.qrcode` ngẫu nhiên (16 hex, ~60 bit): id tuần tự cho phép dò tên học sinh vi phạm của mọi lớp, mã ngẫu nhiên thì chỉ ai có QR của lớp mới xem được. Mã gắn với lớp nên vẫn giữ nguyên khi lên lớp; QR bị lộ thì admin đổi mã (`PUT /classes/:id/qrcode`). Link theo id cũ (`/LopHoc/<id>`) không còn dùng được.
 - Lớp lưu trữ bỏ GVCN để giáo viên nhận lớp 6 mới (`class_teacher_unique`); tên GVCN năm đó vẫn còn trong `class_year`. Tài khoản cờ đỏ của học sinh ra trường bị khóa (`active = false`), không xóa, để giữ `point.accountid`.
+- Quy chế thi đua (2026-11-17): bảng `rule` là danh mục mẫu; lượt chấm vẫn lưu `type`, `content`, `value` riêng (chép từ mục lúc chấm, sửa được), `ruleid` chỉ là liên kết, nên sửa mục quy chế không đổi điểm các lượt đã chấm. Xóa mục đã dùng trả 409 (chuyển `active = false` để ngừng áp dụng) dù FK là `ON DELETE SET NULL`. Mục ngừng áp dụng không chọn được cho lượt mới, nhưng lượt đang gắn mục đó vẫn sửa được. `value` của mục là điểm cho 1 lần / 1 học sinh; BE **không** nhân điểm theo số học sinh gắn kèm (FE tự tính nếu cần), để lượt chấm luôn lưu đúng điểm người chấm thấy.
+- Lượt chấm có `pointdate` riêng (2026-11-17) vì cờ đỏ có thể nhập bù sau ngày vi phạm; `pointdate` phải nằm trong tuần của lượt chấm. Thời điểm nhập là `created_at`; chỉ bảng `point` dùng `timestamptz` (để hiện giờ nhập), các bảng khác vẫn `date`. `entereddate` / `enteredtime` tính trong SQL theo `Asia/Ho_Chi_Minh` để FE không phải đổi múi giờ.

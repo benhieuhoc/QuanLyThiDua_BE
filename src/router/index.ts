@@ -10,6 +10,7 @@ import scoreRouter from './scoreRouter';
 import authRouter from './authRouter';
 import accountRouter from './accountRouter';
 import publicRouter from './publicRouter';
+import ruleRouter from './ruleRouter';
 
 const express = require('express');
 const router = express.Router();
@@ -26,6 +27,7 @@ router.use('/students', studentRouter);
 router.use('/school-years', schoolYearRouter);
 router.use('/weeks', weekRouter);
 router.use('/points', pointRouter);
+router.use('/rules', ruleRouter);
 router.use('/scores', scoreRouter);
 router.use('/auth', authRouter);
 router.use('/accounts', accountRouter);

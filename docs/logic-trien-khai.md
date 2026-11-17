@@ -23,8 +23,10 @@ Trường
 
 Năm học 2026-2027 (HK2 bắt đầu từ tuần semester2_week)
  └─ Tuần 1..N (điểm gốc Nề nếp / Học tập, cờ khóa)
-     └─ Lượt chấm của 1 lớp (Nề nếp/Học tập, nội dung, ±điểm)
+     └─ Lượt chấm của 1 lớp (Nề nếp/Học tập, nội dung, ±điểm, ngày diễn ra; chọn từ quy chế hoặc nhập tự do)
          └─ Học sinh được nêu tên (0..n học sinh của lớp đó)
+
+Quy chế thi đua: danh mục mục cộng/trừ mẫu (Nề nếp · "Đi học muộn" · -1), dùng chung mọi năm học
 ```
 
 | Khái niệm | Bảng | Ghi chú |
@@ -39,7 +41,8 @@ Năm học 2026-2027 (HK2 bắt đầu từ tuần semester2_week)
 | Năm học | `school_year` | Tên `YYYY-YYYY`, ngày bắt đầu tuần 1, tuần bắt đầu học kỳ 2 (`semester2_week`). Tạo năm học thì tự sinh các tuần và lên lớp (mục 4.7) |
 | Lớp theo năm học | `class_year` | Ảnh chụp tên lớp / khối / GVCN của một năm học đã kết thúc, ghi lúc lên lớp để bảng điểm năm cũ giữ tên lớp cũ |
 | Tuần | `week` | Tuần 1..N liên tiếp, 7 ngày. Có điểm gốc Nề nếp (`conduct_base`), Học tập (`study_base`) và cờ khóa (`locked`) |
-| Lượt chấm điểm | `point` | Nhập tự do: phần (`Nề nếp`/`Học tập`), nội dung (≤ 255 ký tự), số điểm nguyên khác 0 từ -1000 đến 1000 (âm = trừ, dương = cộng) |
+| Quy chế thi đua | `rule` | Mục cộng/trừ mẫu: phần, nội dung (≤ 255 ký tự, không trùng trong cùng phần), điểm cho 1 lần / 1 học sinh (khác 0), `active` (ngừng áp dụng). 41 mục mặc định nạp từ `init.sql`; admin thêm / sửa / ngừng |
+| Lượt chấm điểm | `point` | Phần (`Nề nếp`/`Học tập`), nội dung (≤ 255 ký tự), số điểm nguyên khác 0 từ -1000 đến 1000 (âm = trừ, dương = cộng), ngày diễn ra `pointdate` (trong tuần). Chọn mục quy chế (`ruleid`) thì chép phần / nội dung / điểm của mục (sửa được), hoặc nhập tự do. Thời điểm nhập là `created_at` |
 | Học sinh trong lượt chấm | `point_student` | Bảng nối lượt chấm ↔ học sinh (học sinh vi phạm hoặc được khen) |
 | Bảng điểm | view `score_view` | Không lưu, tính từ điểm gốc + các lượt chấm |
 
@@ -99,6 +102,7 @@ Không xóa dây chuyền. API trả lỗi `409` khi:
 | Năm học | Đã có điểm thi đua hoặc có lớp ra trường được lưu trữ |
 | Giảm số tuần của năm học | Các tuần bị bỏ đã có điểm |
 | Lượt chấm | Tuần đã khóa (xóa lượt chấm thì xóa luôn danh sách học sinh gắn kèm) |
+| Mục quy chế | Đã có lượt chấm dùng (`uses > 0`); chuyển `active = false` để ngừng áp dụng. Sửa mục không đổi điểm các lượt đã chấm |
 
 ## 3. Phân quyền
 
@@ -392,11 +396,16 @@ Base URL khi chạy local: `http://localhost:3001` (theo `PORT` trong `.env`).
 | GET | `/weeks/current` | | admin, user |
 | GET | `/weeks/:id` | | admin, user |
 | PUT | `/weeks/:id` | `{ conduct_base?, study_base?, locked?, applyToNext? }` | admin |
-| GET | `/points` | `?weekid=&classid=&type=&studentid=` | admin, user |
+| GET | `/points` | `?weekid=&classid=&type=&studentid=&ruleid=` | admin, user |
 | GET | `/points/:id` | | admin, user |
-| POST | `/points` | `{ weekid, classid, type, content, value, studentIds? }` | admin mọi lớp · cờ đỏ lớp được phân công |
-| PUT | `/points/:id` | `{ type?, content?, value?, studentIds? }` | admin mọi lượt · cờ đỏ lượt mình nhập |
+| POST | `/points` | `{ weekid, classid, ruleid?, type?, content?, value?, pointdate?, studentIds? }` (có `ruleid` thì trường thiếu lấy theo mục; không có thì `type`, `content`, `value` bắt buộc) | admin mọi lớp · cờ đỏ lớp được phân công |
+| PUT | `/points/:id` | `{ ruleid?, type?, content?, value?, pointdate?, studentIds? }` (`ruleid: null` = bỏ liên kết mục) | admin mọi lượt · cờ đỏ lượt mình nhập |
 | DELETE | `/points/:id` | | như PUT |
+| GET | `/rules` | `?type=&active=true\|false` (kèm `uses`) | admin, user |
+| GET | `/rules/:id` | | admin, user |
+| POST | `/rules` | `{ type, content, value, active? }` | admin |
+| PUT | `/rules/:id` | `{ type?, content?, value?, active? }` | admin |
+| DELETE | `/rules/:id` | 409 nếu mục đã dùng | admin |
 | GET | `/scores/ranking` | `?schoolyearid=` (bắt buộc) + đúng 1 trong `week=` (số tuần) / `month=YYYY-MM` / `semester=1\|2` / `year=1` (hoặc `true`), `&branchid=&gradeid=` | admin, user |
 | GET | `/scores/export` | Query như `/scores/ranking`; trả file `.xlsx` (mục 9.8) | admin, user |
 | GET | `/scores/periods` | `?schoolyearid=` (bắt buộc) | admin, user |
@@ -445,11 +454,13 @@ Giới hạn dữ liệu và mã lỗi của từng route được ghi trong not
   "classname": "6A1", "numweek": 8, "schoolyearid": 1, "locked": false,
   "students": [{ "id": 12, "code": "2609138512", "name": "..." }, { "id": 15, "code": "...", "name": "..." }],
   "accountid": 5, "accountusername": "codo.duc", "classteacherid": 1,
-  "created_at": "...", "updated_at": "..."
+  "ruleid": 1, "rulecontent": "Đi học muộn", "pointdate": "2026-10-27",
+  "entereddate": "2026-10-28", "enteredtime": "07:15",
+  "created_at": "2026-10-28T00:15:42.123Z", "updated_at": "2026-10-28T00:15:42.123Z"
 }
 ```
 
-`students` luôn là mảng (rỗng nếu không gắn học sinh). `accountid` / `accountusername` là người nhập (null nếu nhập trước khi có đăng nhập hoặc tài khoản đã bị xóa); `classteacherid` là GVCN của lớp.
+`students` luôn là mảng (rỗng nếu không gắn học sinh). `accountid` / `accountusername` là người nhập (null nếu nhập trước khi có đăng nhập hoặc tài khoản đã bị xóa); `classteacherid` là GVCN của lớp. `ruleid` / `rulecontent` là mục quy chế đã chọn (null = nhập tự do; `rulecontent` là nội dung **hiện tại** của mục, có thể khác `content` của lượt). `pointdate` là ngày diễn ra (trong tuần). `entereddate` / `enteredtime` là thời điểm nhập theo giờ Việt Nam (`'YYYY-MM-DD'` / `'HH:mm'`); `created_at` / `updated_at` là timestamp ISO (UTC).
 
 ### Dữ liệu người dùng (`GET /auth/me` → `data`)
 
@@ -564,7 +575,8 @@ DB mới chạy `init.sql` (cập nhật 2026-11-16, chụp từ DB dev `QLHS`) 
 | Giáo viên | 55, mỗi lớp 1 GVCN (Trần Thị Ngọc Hà chủ nhiệm 6A2 và 7A4 nên có 2 bản ghi trùng tên) | Danh sách GVCN của nhà trường |
 | Năm học | 2026-2027, 35 tuần từ 07/09/2026, điểm gốc 100/100, HK2 mặc định (tuần 19), tuần 1–10 đã khóa | Sinh trong `init.sql` |
 | Lớp: mã QR | Giữ đúng `qrcode` của từng lớp trên DB dev, link QR đã in vẫn dùng được | `init.sql` |
-| Lượt chấm | 2271 lượt tuần 1–10 (2741 học sinh gắn kèm); chỉ nạp vào tuần chưa có lượt chấm | Dữ liệu chấm trên DB dev |
+| Lượt chấm | 2271 lượt tuần 1–10 (2741 học sinh gắn kèm); chỉ nạp vào tuần chưa có lượt chấm; `pointdate` = ngày nhập kẹp trong tuần, không gắn `ruleid` | Dữ liệu chấm trên DB dev |
+| Quy chế thi đua | 41 mục (Nề nếp: 20 trừ, 5 cộng; Học tập: 12 trừ, 4 cộng); mục đã có (cùng phần, nội dung) thì bỏ qua | `init.sql` (mục 9.11) |
 | Tài khoản | 7: `admin` (mật khẩu `1`), 3 GVCN, 3 cờ đỏ + 7 phân công lớp | `init.sql`; danh sách ở [tai-khoan-dev.md](tai-khoan-dev.md) |
 
 Dữ liệu học sinh là thông tin cá nhân thật: `init.sql` không đưa lên repo công khai, không dùng làm dữ liệu mẫu trong tài liệu ngoài vài ví dụ minh họa.
@@ -578,6 +590,7 @@ Dữ liệu học sinh là thông tin cá nhân thật: `init.sql` không đưa 
 | Năm học, tuần, điểm gốc, khóa tuần, học kỳ | ✅ Có API, FE đã tích hợp |
 | Chuyển năm học: chặn khi năm cũ chưa kết thúc, lưu trữ khối 9, lên lớp, tạo khối 6 | ✅ BE xong (`POST /school-years`, `GET /classes?archived=`); FE chưa hiển thị `promotion`, `grade6`, danh sách lớp ra trường (mục 9.7) |
 | Chấm điểm thi đua (`point`), gắn học sinh vào lượt chấm | ✅ Có API, FE đã tích hợp |
+| Quy chế thi đua (`/rules`), chấm theo mục quy chế (`ruleid`), ngày diễn ra (`pointdate`) và giờ nhập (`entereddate`, `enteredtime`) | ✅ BE xong (2026-11-17); FE chưa tích hợp (mục 9.4, 9.11) |
 | Xếp hạng theo tuần / tháng / học kỳ, cộng dồn khoảng tuần | ✅ Có API, FE đã tích hợp (`/tong-hop`) |
 | Xếp hạng cả năm học (`year=1`), xuất Excel `/scores/export` | ✅ BE xong; FE chưa có nút tải Excel, lựa chọn "Cả năm" (mục 9.8) |
 | Tài khoản admin/user (GVCN, cờ đỏ), phân công cờ đỏ, đăng nhập JWT | ✅ Có API `/auth`, `/accounts`, middleware; FE đã có `/dang-nhap`, `/tai-khoan` |
@@ -637,7 +650,9 @@ Lọc menu theo `me.kind` và chuyển về `/` khi mở trang không được p
 
 - Mọi người xem được bảng điểm tất cả lớp. Nút "Thêm lượt chấm" chỉ hiện với lớp nằm trong **lớp được chấm** (9.2); cờ đỏ nên mặc định chọn lớp được phân công đầu tiên.
 - Nút sửa / xóa từng lượt: admin luôn hiện; gvcn không hiện; codo hiện khi `point.accountid === me.id` **và** lớp nằm trong `me.classes`.
-- Hiện "Người nhập: `accountusername`" (null → "Không rõ").
+- Hiện dòng "Người nhập · HH:mm DD/MM/YYYY" ghép từ `accountusername` (null → "Không rõ"), `enteredtime` và `entereddate` (đổi `YYYY-MM-DD` → `DD/MM/YYYY`), ví dụ "codo.duc · 07:15 28/10/2026". Dùng `entereddate` / `enteredtime` (đã là giờ Việt Nam), không tự đổi `created_at`. Lượt cũ (nhập trước 2026-11-17) chỉ có ngày nên giờ là `00:00`.
+- **Ngày diễn ra** (`pointdate`): form thêm / sửa có ô chọn ngày (`<input type="date">`) với `min = week.startdate`, `max = week.enddate` của tuần đang chấm; mặc định hôm nay nếu nằm trong tuần, ngoài tuần thì ngày gần nhất trong tuần (BE cũng tự điền như vậy khi không gửi). Sửa lượt chấm: chỉ gửi `pointdate` khi đổi (bỏ trường = giữ nguyên). Danh sách lượt chấm có thể hiện / gom theo `pointdate` (BE đã sắp theo `pointdate` rồi giờ nhập). Lỗi 400 `errors: [{ field: "pointdate" }]`: sai định dạng ("pointdate là ngày dạng YYYY-MM-DD") hoặc ngoài tuần ("Ngày phải nằm trong tuần N (...)").
+- **Chọn mục quy chế** khi chấm: xem 9.11.
 - Cờ đỏ chưa được phân công lớp (`classes = []`): báo "Bạn chưa được phân công lớp chấm điểm, liên hệ giáo viên quản lý nề nếp".
 - Thứ tự lỗi: chưa có quyền → 403 trước, có quyền nhưng tuần đã khóa → 409.
 - **Gắn học sinh** (ô chọn nhiều, tìm theo tên / mã, nguồn `GET /students?classid=<lớp đang chấm>`): khi sửa thì chọn sẵn `students` hiện có, chỉ gửi `studentIds` khi người dùng đổi danh sách (bỏ trường = giữ nguyên, `[]` = bỏ hết). Lỗi:
@@ -800,7 +815,8 @@ type PublicClassPage = {
     study_base: number; study_plus: number; study_minus: number; study_score: number
     total: number; entries: number; rank: number; numclasses: number   // hạng toàn trường: rank / numclasses
     points: { type: "Nề nếp" | "Học tập"; content: string; value: number
-              students: { name: string }[] }[]   // họ tên HS gắn vào lượt chấm (thứ tự như GET /points), [] nếu không có
+              pointdate: string                  // "YYYY-MM-DD", ngày diễn ra (trong tuần)
+              students: { name: string }[] }[]   // họ tên HS gắn vào lượt chấm, [] nếu không có; sắp theo phần (Nề nếp trước) → pointdate → giờ nhập
   }[]
 }
 ```
@@ -809,6 +825,56 @@ type PublicClassPage = {
 - Gợi ý hiển thị: tuần mới nhất nổi bật (Nề nếp, Học tập, Tổng, hạng X/Y), danh sách lượt cộng/trừ (`value < 0` đỏ, `> 0` xanh); `locked = false` ghi "Đang chấm, điểm có thể thay đổi".
 - Họ tên học sinh hiện ở cả lượt cộng và trừ (người dùng đã đồng ý công khai). API chỉ trả `name`, không id / mã / ngày sinh.
 - Lỗi: 400 `schoolyearid` sai; 404 "Không tìm thấy lớp" (mã sai định dạng / không tồn tại / đã bị đổi) hoặc "Lớp X không có kết quả thi đua ở năm học này" → trang báo không tìm thấy.
+- Có thể hiện ngày diễn ra cạnh từng lượt (`pointdate`, dạng `DD/MM`).
+
+### 9.11. Quy chế thi đua (FE chưa làm)
+
+Danh mục các mục cộng / trừ mẫu để chọn nhanh khi chấm (41 mục mặc định từ `init.sql`). `value` là điểm cho **1 lần / 1 học sinh**.
+
+```ts
+type Rule = {
+  id: number
+  type: "Nề nếp" | "Học tập"
+  content: string          // ≤ 255 ký tự, không trùng trong cùng type
+  value: number            // số nguyên khác 0, -1000..1000 (âm = trừ, dương = cộng)
+  active: boolean          // false = ngừng áp dụng, không chọn được khi chấm mới
+  uses: number             // số lượt chấm đang gắn mục này
+  created_at: string; updated_at: string   // "YYYY-MM-DD"
+}
+// Point thêm: ruleid: number | null; rulecontent: string | null; pointdate: string; entereddate: string; enteredtime: string
+```
+
+| Method | Path | Body / Query | Quyền | Lỗi |
+|---|---|---|---|---|
+| GET | `/rules` | `?type=Nề nếp\|Học tập&active=true\|false` (không bắt buộc); sắp Nề nếp trước, điểm tăng dần (trừ nặng trước), nội dung | admin, user | 400 `type` / `active` sai (`active` chỉ nhận chuỗi `true` / `false`) |
+| GET | `/rules/:id` | | admin, user | 400, 404 |
+| POST | `/rules` | `{ type, content, value, active? }` (`active` mặc định `true`) | admin | 400 `errors[].field` = `type` / `content` / `value` / `active`; 409 trùng (type, content) "Dữ liệu bị trùng" |
+| PUT | `/rules/:id` | `{ type?, content?, value?, active? }` | admin | 400, 404, 409 trùng |
+| DELETE | `/rules/:id` | | admin | 404; 409 "Mục quy chế đã dùng trong N lượt chấm, không thể xóa. Hãy chuyển sang ngừng áp dụng (active = false)" |
+
+**Chấm theo mục quy chế** (`POST /points`):
+
+- Gửi `ruleid` (mục đang áp dụng) thì `type`, `content`, `value` không gửi sẽ lấy theo mục; gửi kèm thì ghi đè (vd sửa nội dung "Đi học muộn (2 bạn)" và điểm -2). **BE không nhân điểm theo số học sinh**: muốn điểm = `rule.value × số học sinh` thì FE tự tính rồi gửi `value`.
+- Không gửi `ruleid` = nhập tự do như cũ (`type`, `content`, `value` bắt buộc). Gửi `ruleid: null` khi POST → 400.
+- Lỗi: 400 `errors: [{ field: "type" }]` khi `type` khác phần của mục; 404 "Không tìm thấy mục quy chế"; 409 "Mục quy chế đã ngừng áp dụng".
+
+**Sửa lượt chấm** (`PUT /points/:id`), trường `ruleid`:
+
+| Gửi | Kết quả |
+|---|---|
+| Không gửi | Giữ nguyên mục |
+| `null` | Bỏ liên kết mục, giữ nguyên nội dung và điểm |
+| Số = mục đang gắn | Giữ mục (được cả khi mục đã ngừng áp dụng), các trường gửi kèm được cập nhật |
+| Số = mục khác | Đổi mục; trường không gửi lấy theo mục mới (mục mới phải đang áp dụng, nếu không → 409) |
+
+Đổi `type` của lượt đang gắn mục sang phần khác → 400 (bỏ liên kết trước bằng `ruleid: null`).
+
+**Gợi ý giao diện:**
+
+- Form chấm điểm: ô chọn mục quy chế (combobox tìm theo nội dung, nguồn `GET /rules?active=true`, gom theo `type`, hiện điểm `-1` / `+2` cạnh tên), lựa chọn đầu "Nhập tự do". Chọn mục thì điền sẵn phần / nội dung / điểm (vẫn sửa được); nếu gắn học sinh có thể gợi ý điểm = `value × số học sinh` và thêm "(N bạn)" vào nội dung, người chấm xác nhận. Sửa lượt đang gắn mục đã ngừng: vẫn hiện mục đó trong ô chọn (lấy `ruleid` / `rulecontent` từ lượt).
+- Lượt chấm có `ruleid` có thể hiện nhãn nhỏ "Theo quy chế"; lọc lượt chấm theo mục bằng `GET /points?ruleid=`.
+- Trang **Quy chế thi đua** (admin sửa được, user chỉ xem): bảng 2 nhóm Nề nếp / Học tập, cột nội dung, điểm (đỏ / xanh), trạng thái, số lượt đã dùng (`uses`). Nút xóa chỉ bật khi `uses = 0`, ngược lại hiện nút "Ngừng áp dụng" (`PUT { active: false }`) / "Áp dụng lại". Sửa mục không đổi điểm các lượt đã chấm, nên ghi chú điều này trong dialog sửa.
+- Sau khi thêm / sửa mục, làm mới `/rules`; sau khi chấm bằng mục, làm mới `/rules` nếu đang hiện `uses`.
 
 ## 10. Nhật ký thay đổi API cho FE
 
@@ -821,3 +887,6 @@ type PublicClassPage = {
 | 2026-11-15 | Lớp có `BaseQRCode` (`/LopHoc/<id>`); API công khai `GET /public/classes/:id` cho phụ huynh xem kết quả thi đua qua mã QR | 9.10 |
 | 2026-11-16 | Xếp hạng tháng / học kỳ / cả năm (`/scores/ranking`, `/scores/summary`, `/scores/export`) xếp theo `avg_total` (TB / tuần) thay vì `total`; response không đổi, FE nên làm nổi cột TB / tuần | 9.6 |
 | 2026-11-16 | **Breaking**: link công khai đổi sang mã ngẫu nhiên `qrcode` (`BaseQRCode: /LopHoc/<qrcode>`, `GET /public/classes/:qrcode`), link theo id không còn dùng; `points[].students: { name }[]`; admin đổi mã `PUT /classes/:id/qrcode`. Chạy lại `cscript/init.sql` để thêm cột `class.qrcode` | 9.10 |
+| 2026-11-17 | Quy chế thi đua: API `/rules` (GET cho admin, user; POST / PUT / DELETE chỉ admin), `Rule` kèm `uses`; 41 mục mặc định. Chạy lại `cscript/init.sql` để tạo bảng `rule` | 9.11 |
+| 2026-11-17 | Chấm theo mục quy chế: `POST` / `PUT /points` nhận `ruleid` (trường thiếu lấy theo mục, PUT `ruleid: null` = bỏ liên kết), `GET /points?ruleid=`; lượt chấm trả thêm `ruleid`, `rulecontent`. Không đổi body cũ (nhập tự do vẫn như trước) | 9.4, 9.11 |
+| 2026-11-17 | Ngày diễn ra và giờ nhập: lượt chấm có `pointdate` (POST / PUT nhận `pointdate`, phải trong tuần, mặc định hôm nay kẹp vào tuần), `entereddate` + `enteredtime` (giờ Việt Nam); `created_at` / `updated_at` của lượt chấm thành timestamp ISO (trước là `YYYY-MM-DD`); `/points` sắp theo `pointdate`; trang công khai `points[].pointdate` | 9.4, 9.10 |

@@ -1,24 +1,39 @@
-import { sendSuccess, sendError, handleError, parseId, parseIntInRange } from "../utils/http";
-import { POINT_TYPES, fetchAllPoint, checkPointExist, createPoint, updatePoint, deletePoint } from "../service/pointService";
+import { sendSuccess, sendError, handleError, parseId, parseIntInRange, parseDate } from "../utils/http";
+import { POINT_TYPES, PointInput, fetchAllPoint, checkPointExist, createPoint, updatePoint, deletePoint } from "../service/pointService";
 
-// Kiểm tra type/content/value; required = true khi tạo mới
-const validatePointInput = (body: any, required: boolean) => {
+// Kiểm tra type/content/value/ruleid/pointdate/studentIds; isCreate = true khi tạo mới
+// Tạo mới: có ruleid thì type/content/value không bắt buộc (lấy theo mục quy chế), không có thì bắt buộc như cũ
+const validatePointInput = (body: any, isCreate: boolean) => {
     const errors: any[] = [];
-    let type: string | undefined;
-    let content: string | undefined;
-    let value: number | undefined;
+    const input: PointInput = {};
+
+    if (body?.ruleid !== undefined) {
+        if (body.ruleid === null) {
+            if (isCreate) errors.push({ field: 'ruleid', message: 'ruleid là id mục quy chế; bỏ trường nếu nhập tự do' });
+            else input.ruleid = null;
+        } else {
+            const ruleid = parseId(body.ruleid);
+            if (!ruleid) errors.push({ field: 'ruleid', message: 'ruleid không hợp lệ' });
+            else input.ruleid = ruleid;
+        }
+    }
+    const required = isCreate && body?.ruleid == null;
 
     if (body?.type !== undefined || required) {
-        type = body?.type;
-        if (!POINT_TYPES.includes(type as string)) errors.push({ field: 'type', message: `type là một trong: ${POINT_TYPES.join(', ')}` });
+        input.type = body?.type;
+        if (!POINT_TYPES.includes(input.type as string)) errors.push({ field: 'type', message: `type là một trong: ${POINT_TYPES.join(', ')}` });
     }
     if (body?.content !== undefined || required) {
-        content = typeof body?.content === 'string' ? body.content.trim() : '';
-        if (!content || content.length > 255) errors.push({ field: 'content', message: 'Nội dung bắt buộc, tối đa 255 ký tự' });
+        input.content = typeof body?.content === 'string' ? body.content.trim() : '';
+        if (!input.content || input.content.length > 255) errors.push({ field: 'content', message: 'Nội dung bắt buộc, tối đa 255 ký tự' });
     }
     if (body?.value !== undefined || required) {
-        value = parseIntInRange(body?.value, -1000, 1000) ?? undefined;
-        if (!value) errors.push({ field: 'value', message: 'value là số nguyên khác 0, từ -1000 đến 1000 (âm = trừ, dương = cộng)' });
+        input.value = parseIntInRange(body?.value, -1000, 1000) ?? undefined;
+        if (!input.value) errors.push({ field: 'value', message: 'value là số nguyên khác 0, từ -1000 đến 1000 (âm = trừ, dương = cộng)' });
+    }
+    if (body?.pointdate !== undefined) {
+        input.pointdate = parseDate(body.pointdate) ?? undefined;
+        if (!input.pointdate) errors.push({ field: 'pointdate', message: 'pointdate là ngày dạng YYYY-MM-DD' });
     }
     let studentIds: number[] | undefined;
     if (body?.studentIds !== undefined) {
@@ -30,14 +45,14 @@ const validatePointInput = (body: any, required: boolean) => {
             errors.push({ field: 'studentIds', message: 'studentIds bị trùng' });
         }
     }
-    return { type, content, value, studentIds, errors };
+    return { input, studentIds, errors };
 }
 
-// Query: ?weekid=&classid=&type=&studentid= (không bắt buộc)
+// Query: ?weekid=&classid=&type=&studentid=&ruleid= (không bắt buộc)
 export const getPoints = async (req: any, res: any) => {
     try {
-        const filter: { weekid?: number, classid?: number, type?: string, studentid?: number } = {};
-        for (const key of ['weekid', 'classid', 'studentid'] as const) {
+        const filter: { weekid?: number, classid?: number, type?: string, studentid?: number, ruleid?: number } = {};
+        for (const key of ['weekid', 'classid', 'studentid', 'ruleid'] as const) {
             if (req.query[key] !== undefined) {
                 const value = parseId(req.query[key]);
                 if (!value) return sendError(res, 400, `${key} không hợp lệ`);
@@ -66,31 +81,31 @@ export const getPoint = async (req: any, res: any) => {
     }
 }
 
-// Body: { weekid, classid, type, content, value }
+// Body: { weekid, classid, ruleid?, type?, content?, value?, pointdate?, studentIds? }
 export const postPoint = async (req: any, res: any) => {
     try {
         const weekid = parseId(req.body?.weekid);
         const classid = parseId(req.body?.classid);
-        const { type, content, value, studentIds, errors } = validatePointInput(req.body, true);
+        const { input, studentIds, errors } = validatePointInput(req.body, true);
         if (!weekid) errors.unshift({ field: 'weekid', message: 'weekid không hợp lệ' });
         if (!classid) errors.unshift({ field: 'classid', message: 'classid không hợp lệ' });
         if (errors.length > 0) return sendError(res, 400, 'Dữ liệu không hợp lệ', errors);
 
-        const point = await createPoint(req.user, weekid!, classid!, type!, content!, value!, studentIds);
+        const point = await createPoint(req.user, weekid!, classid!, input, studentIds);
         return sendSuccess(res, point, 'Chấm điểm thành công', 201);
     } catch (err) {
         return handleError(res, err);
     }
 }
 
-// Body: { type?, content?, value?, studentIds? }
+// Body: { ruleid?, type?, content?, value?, pointdate?, studentIds? }
 export const putPoint = async (req: any, res: any) => {
     try {
         const id = parseId(req.params.id);
         if (!id) return sendError(res, 400, 'id không hợp lệ');
-        const { type, content, value, studentIds, errors } = validatePointInput(req.body, false);
+        const { input, studentIds, errors } = validatePointInput(req.body, false);
         if (errors.length > 0) return sendError(res, 400, 'Dữ liệu không hợp lệ', errors);
-        return sendSuccess(res, await updatePoint(req.user, id, type, content, value, studentIds), 'Cập nhật lượt chấm điểm thành công');
+        return sendSuccess(res, await updatePoint(req.user, id, input, studentIds), 'Cập nhật lượt chấm điểm thành công');
     } catch (err) {
         return handleError(res, err);
     }

@@ -191,13 +191,13 @@ export const fetchClassScore = async (classid: number, schoolyearid: number) => 
 }
 
 // Các lượt cộng/trừ của 1 tuần, gom theo lớp: Map<classid, [{ type, content, value }]>
-// Không kèm học sinh được gắn; sắp theo phần (Nề nếp trước) → thời điểm nhập
+// Không kèm học sinh được gắn; sắp theo phần (Nề nếp trước) → ngày diễn ra → thời điểm nhập
 export const fetchWeekPointDetails = async (weekid: number) => {
     const result = await pool.query(`
         SELECT classid, type, content, value
         FROM point
         WHERE weekid = $1
-        ORDER BY classid, CASE WHEN type = 'Nề nếp' THEN 0 ELSE 1 END, created_at, id
+        ORDER BY classid, CASE WHEN type = 'Nề nếp' THEN 0 ELSE 1 END, pointdate, created_at, id
     `, [weekid]);
     const byClass = new Map<number, { type: string, content: string, value: number }[]>();
     for (const row of result.rows) {
@@ -262,7 +262,7 @@ export const fetchPublicClassScore = async (qrcode: string, schoolyearid?: numbe
     `, [classid, schoolyear.id]);
 
     const pointsResult = await pool.query(`
-        SELECT p.weekid, p.type, p.content, p.value,
+        SELECT p.weekid, p.type, p.content, p.value, p.pointdate,
                COALESCE((
                    SELECT json_agg(json_build_object('name', s.name) ORDER BY s.id)
                    FROM point_student ps
@@ -272,12 +272,12 @@ export const fetchPublicClassScore = async (qrcode: string, schoolyearid?: numbe
         FROM point p
         JOIN week w ON w.id = p.weekid
         WHERE p.classid = $1 AND w.schoolyearid = $2
-        ORDER BY p.weekid, CASE WHEN p.type = 'Nề nếp' THEN 0 ELSE 1 END, p.created_at, p.id
+        ORDER BY p.weekid, CASE WHEN p.type = 'Nề nếp' THEN 0 ELSE 1 END, p.pointdate, p.created_at, p.id
     `, [classid, schoolyear.id]);
-    const pointsByWeek = new Map<number, { type: string, content: string, value: number, students: { name: string }[] }[]>();
+    const pointsByWeek = new Map<number, { type: string, content: string, value: number, pointdate: string, students: { name: string }[] }[]>();
     for (const row of pointsResult.rows) {
         if (!pointsByWeek.has(row.weekid)) pointsByWeek.set(row.weekid, []);
-        pointsByWeek.get(row.weekid)!.push({ type: row.type, content: row.content, value: row.value, students: row.students });
+        pointsByWeek.get(row.weekid)!.push({ type: row.type, content: row.content, value: row.value, pointdate: row.pointdate, students: row.students });
     }
 
     const weeks = weeksResult.rows.map((w: any) => ({ ...w, points: pointsByWeek.get(w.weekid) ?? [] }));
