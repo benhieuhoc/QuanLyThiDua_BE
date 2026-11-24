@@ -3,15 +3,7 @@ import {
     ROLES, fetchAllAccount, checkAccountExist, login, changePassword,
     createAccount, updateAccount, deleteAccount, replaceAccountClasses,
 } from "../service/accountService";
-
-// account.username varchar(50): chữ, số, dấu . _ -; lưu chữ thường
-const USERNAME_RE = /^[a-z0-9._-]{3,50}$/;
-const normalizeUsername = (value: any) => typeof value === 'string' ? value.trim().toLowerCase() : '';
-const isValidUsername = (value: string) => USERNAME_RE.test(value);
-
-// bcrypt chỉ dùng 72 byte đầu nên giới hạn 72 byte
-const isValidPassword = (value: any) => typeof value === 'string' && value.length >= 6 && Buffer.byteLength(value, 'utf8') <= 72;
-const PASSWORD_MESSAGE = 'Mật khẩu từ 6 ký tự, tối đa 72 byte';
+import { normalizeUsername, isValidUsername, isValidPassword, PASSWORD_MESSAGE } from "../utils/auth";
 
 // ---------- /auth ----------
 

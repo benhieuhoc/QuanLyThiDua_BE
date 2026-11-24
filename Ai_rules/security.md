@@ -1,6 +1,6 @@
 # Quy tắc bảo mật: Authentication, Authorization, phân cấp quyền
 
-> Đã triển khai: đăng nhập (`/auth`), quản lý tài khoản (`/accounts`), middleware `src/app/middleware/auth.ts` gắn cho mọi route (trừ `GET /`, `POST /auth/login`, `/public/*`). File này là quy chuẩn bắt buộc. Khi thay đổi vai trò phải cập nhật file này và `code-map.md`.
+> Đã triển khai: đăng nhập (`/auth`), quản lý tài khoản (`/accounts`), phụ huynh (`/parents`, `/auth/parent/*`), middleware `src/app/middleware/auth.ts` gắn cho mọi route (trừ `GET /`, `POST /auth/login`, `POST /auth/parent/login`, `/public/*`: trang lớp QR và tổng quan công khai). File này là quy chuẩn bắt buộc. Khi thay đổi vai trò phải cập nhật file này và `code-map.md`.
 
 ## Authentication
 
@@ -42,11 +42,19 @@ Project chỉ có **2 role** (bảng `account`): `admin` và `user`. Role `user`
 - Không tin `role` hay `id` gửi từ body/query; chỉ dùng `req.user` lấy từ token.
 - Người dùng không được tự nâng quyền; chỉ `admin` được gán role.
 
+## Phụ huynh (bảng `parent`)
+
+- Phụ huynh **không** có tài khoản trong `account` và không phải role thứ 3: đăng nhập riêng `POST /auth/parent/login`, token `{ id: parent.id, role: 'parent' }`.
+- Token phụ huynh chỉ qua `authenticateParent` (`/auth/parent/me`, `/auth/parent/password`). `authenticate` phải từ chối mọi token có role ngoài `admin`/`user` (401), vì `id` trong token phụ huynh là `parent.id`, tra vào `account` sẽ thành tài khoản khác. Ngược lại `authenticateParent` từ chối token giáo viên / cờ đỏ.
+- Phụ huynh chỉ xem thông tin của mình, con và lớp con, và các lượt chấm có gắn con (`GET /auth/parent/points`, không có tên học sinh khác hay người nhập); xem kết quả thi đua qua trang công khai (`BaseQRCode`). Muốn mở thêm API cho phụ huynh thì tạo route riêng dưới `authenticateParent`, giới hạn theo `req.parent.studentid`, không gắn phụ huynh vào router hiện có.
+- Chỉ admin tạo / sửa / khóa / xóa phụ huynh và cấp tài khoản (`/parents`). Mật khẩu bcrypt cost 10, không trả `password`; đăng nhập sai trả thông báo chung, sai username vẫn so hash giả; bị khóa → 403 khi đăng nhập, 401 với token đang dùng.
+
 ## Route công khai (`/public`)
 
 - `GET /public/classes/:qrcode`: trang lớp cho phụ huynh mở qua mã QR (`BaseQRCode`), không đăng nhập.
 - Link công khai dùng `class.qrcode` (ngẫu nhiên, khó đoán), **không** dùng id tuần tự, để không dò được trang của lớp khác. Mã sai định dạng trả 404 giống mã không tồn tại. QR bị lộ thì admin đổi mã (`PUT /classes/:id/qrcode`).
 - Chỉ trả kết quả thi đua của lớp (điểm tuần, hạng, nội dung lượt cộng/trừ), **họ tên** học sinh gắn vào từng lượt chấm (người dùng đã chấp nhận công khai, 2026-11-16) và thông tin lớp (tên, phân hiệu, tên GVCN, sĩ số). **Không** trả danh sách học sinh của lớp, id / mã / ngày sinh / giới tính học sinh, tài khoản / người nhập hay id giáo viên.
+- `GET /public/meta`, `/public/scores/periods`, `/public/scores/ranking` (trang tổng quan khi chưa đăng nhập, người dùng yêu cầu 2026-11-22): chỉ năm học / tuần / phân hiệu / khối và điểm, hạng tổng hợp theo lớp (kèm tên GVCN). **Không** trả học sinh, nội dung lượt chấm, tài khoản, `teacherid`. Bọc hàm service nội bộ thì phải lọc lại cột trước khi trả.
 - Thêm dữ liệu vào route public phải liệt kê cột cụ thể, không `SELECT *`.
 
 ## Khác

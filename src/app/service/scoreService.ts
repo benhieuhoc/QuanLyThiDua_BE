@@ -283,3 +283,56 @@ export const fetchPublicClassScore = async (qrcode: string, schoolyearid?: numbe
     const weeks = weeksResult.rows.map((w: any) => ({ ...w, points: pointsByWeek.get(w.weekid) ?? [] }));
     return { class: publicClass, schoolyears, schoolyear, weeks };
 }
+
+// ---------- Trang tổng quan công khai (/public, không đăng nhập) ----------
+// Chỉ số liệu tổng hợp theo lớp; liệt kê cột cụ thể, không trả học sinh, lượt chấm, tài khoản, id giáo viên (security.md)
+
+const publicSchoolYear = (sy: any) => ({
+    id: sy.id, name: sy.name, startdate: sy.startdate, enddate: sy.enddate,
+    numweeks: sy.numweeks, semester2_week: sy.semester2_week,
+});
+
+// Dữ liệu khởi tạo trang: năm học (mới nhất trước), tuần hiện tại (null nếu hôm nay ngoài mọi tuần), phân hiệu, khối
+export const fetchPublicMeta = async () => {
+    const [schoolYears, currentWeek, branches, grades] = await Promise.all([
+        pool.query(`
+            SELECT sy.id, sy.name, sy.startdate,
+                   COUNT(w.id)::int AS numweeks, MAX(w.enddate) AS enddate,
+                   COALESCE(sy.semester2_week, CEIL(COUNT(w.id) / 2.0)::int + 1) AS semester2_week
+            FROM school_year sy
+            LEFT JOIN week w ON w.schoolyearid = sy.id
+            GROUP BY sy.id
+            ORDER BY sy.startdate DESC
+        `),
+        pool.query(`
+            SELECT w.id, w.schoolyearid, sy.name AS schoolyearname, w.numweek, w.startdate, w.enddate, w.locked
+            FROM week w
+            JOIN school_year sy ON sy.id = w.schoolyearid
+            WHERE CURRENT_DATE BETWEEN w.startdate AND w.enddate
+        `),
+        pool.query(`SELECT id, name, code FROM branch ORDER BY code`),
+        pool.query(`SELECT id, numgrade FROM grade ORDER BY numgrade`),
+    ]);
+    return {
+        schoolyears: schoolYears.rows,
+        currentweek: currentWeek.rows[0] ?? null,
+        branches: branches.rows,
+        grades: grades.rows,
+    };
+}
+
+// Như fetchRankingPeriods, năm học chỉ giữ cột công khai
+export const fetchPublicRankingPeriods = async (schoolyearid: number) => {
+    const data = await fetchRankingPeriods(schoolyearid);
+    return { ...data, schoolyear: publicSchoolYear(data.schoolyear) };
+}
+
+// Như fetchRanking (cùng số liệu, cùng lỗi 404 / 409), bỏ teacherid
+export const fetchPublicRanking = async (schoolyearid: number, period: RankingPeriod, filter: { branchid?: number, gradeid?: number } = {}) => {
+    const data = await fetchRanking(schoolyearid, period, filter);
+    return {
+        schoolyear: publicSchoolYear(data.schoolyear),
+        period: data.period,
+        scores: data.scores.map(({ teacherid, ...row }: any) => row),
+    };
+}

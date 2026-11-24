@@ -98,7 +98,7 @@ Không xóa dây chuyền. API trả lỗi `409` khi:
 | Phân hiệu | Còn giáo viên hoặc lớp |
 | Giáo viên | Đang chủ nhiệm lớp |
 | Lớp | Còn học sinh hoặc đã có điểm thi đua |
-| Học sinh | Đã được gắn vào lượt chấm điểm |
+| Học sinh | Đã được gắn vào lượt chấm điểm hoặc còn phụ huynh (xóa phụ huynh trước) |
 | Năm học | Đã có điểm thi đua hoặc có lớp ra trường được lưu trữ |
 | Giảm số tuần của năm học | Các tuần bị bỏ đã có điểm |
 | Lượt chấm | Tuần đã khóa (xóa lượt chấm thì xóa luôn danh sách học sinh gắn kèm) |
@@ -116,7 +116,7 @@ Có 2 vai trò (bảng `account`). Vai trò `user` có 2 loại người dùng, 
 
 Học sinh thường không có tài khoản; chỉ học sinh được chọn làm cờ đỏ mới được admin cấp tài khoản. Mỗi lượt chấm lưu `point.accountid` là người nhập.
 
-Đăng nhập dùng JWT gửi qua header `Authorization: Bearer <token>`. Mọi API (trừ `GET /`, `POST /auth/login` và `GET /public/classes/:qrcode` cho phụ huynh xem qua mã QR, mục 9.10) bắt buộc gửi token: thiếu / sai / hết hạn → 401; không đủ quyền → 403. Thêm/sửa/xóa phân hiệu, giáo viên, lớp, học sinh, năm học, tuần chỉ admin. Cách FE gửi token, xử lý 401/403, chặn trang: mục 9.1–9.3.
+Đăng nhập dùng JWT gửi qua header `Authorization: Bearer <token>`. Mọi API (trừ `GET /`, `POST /auth/login`, `POST /auth/parent/login`, `GET /public/classes/:qrcode` cho phụ huynh xem qua mã QR (mục 9.10) và tổng quan công khai `/public/meta`, `/public/scores/*` (mục 9.13)) bắt buộc gửi token: thiếu / sai / hết hạn → 401; không đủ quyền → 403. Thêm/sửa/xóa phân hiệu, giáo viên, lớp, học sinh, năm học, tuần chỉ admin. Cách FE gửi token, xử lý 401/403, chặn trang: mục 9.1–9.3.
 
 Đăng nhập: username không phân biệt hoa thường; mật khẩu 6 ký tự – 72 byte, hash bcrypt cost 10. Tài khoản bị khóa (`active = false`) thì đăng nhập trả 403 và token đang dùng bị từ chối ngay (401). Luôn phải còn ít nhất 1 admin hoạt động; admin không tự khóa / xóa mình. Role, `teacherid`, `studentid` không sửa được (xóa và tạo lại). Quy chuẩn chi tiết: [Ai_rules/security.md](../Ai_rules/security.md).
 
@@ -166,6 +166,13 @@ Kiểm tra quyền trước, rồi mới tới tuần khóa: chưa có quyền �
 Các API khác khi chưa đăng nhập: 401 "Chưa đăng nhập" (thiếu token) hoặc "Phiên đăng nhập không hợp lệ hoặc đã hết hạn".
 
 Tài khoản mẫu dev (mật khẩu `1`): xem [tai-khoan-dev.md](tai-khoan-dev.md).
+
+### Phụ huynh
+
+- Bảng `parent` (không phải `account`, không phải role thứ 3): họ tên, quan hệ `Cha` / `Mẹ`, con (`studentid`). Lớp của con lấy theo học sinh (chuyển lớp / lên lớp tự đúng), không lưu riêng. Mỗi học sinh tối đa 1 cha, 1 mẹ; phụ huynh có nhiều con thì mỗi con 1 bản ghi.
+- Chỉ admin quản lý (`/parents`). Tài khoản đăng nhập không bắt buộc: `username` + `password` cùng có hoặc cùng không; quy tắc giống tài khoản giáo viên (username 3–50 ký tự, chữ thường; mật khẩu 6 ký tự – 72 byte, bcrypt).
+- Đăng nhập riêng `POST /auth/parent/login`, token có `role: "parent"` chỉ dùng được với `/auth/parent/me`, `/auth/parent/password`; gửi tới API khác → 401. Phụ huynh xem kết quả thi đua của lớp con qua trang công khai (`BaseQRCode` trong `/auth/parent/me`).
+- Khóa (`active: false`) → đăng nhập 403, token đang dùng 401. `username: null` = xóa tài khoản đăng nhập, giữ thông tin phụ huynh.
 
 ## 4. Luồng sử dụng
 
@@ -421,7 +428,19 @@ Base URL khi chạy local: `http://localhost:3001` (theo `PORT` trong `.env`).
 | PUT | `/accounts/:id` | `{ username?, password? (đặt lại), active? (false = khóa) }` | admin |
 | DELETE | `/accounts/:id` | | admin |
 | PUT | `/accounts/:id/classes` | `{ classIds: number[] }` thay toàn bộ lớp cờ đỏ chấm | admin |
+| GET | `/parents` | `?studentid=&classid=` (kèm `hasaccount`, tên / mã HS, `classid`, `classname`) | admin |
+| GET | `/parents/:id` | | admin |
+| POST | `/parents` | `{ name, relation: 'Cha'|'Mẹ', studentid, username?, password? }` | admin |
+| PUT | `/parents/:id` | `{ name?, relation?, studentid?, username? (null = xóa tài khoản), password? (đặt lại), active? }` | admin |
+| DELETE | `/parents/:id` | | admin |
+| POST | `/auth/parent/login` | `{ username, password }` → `{ token, parent }` | public |
+| GET | `/auth/parent/me` | Phụ huynh đang đăng nhập, kèm con, lớp, `BaseQRCode` | phụ huynh |
+| PUT | `/auth/parent/password` | `{ oldPassword, newPassword }` | phụ huynh |
+| GET | `/auth/parent/points` | `?schoolyearid=` (không bắt buộc); lượt chấm có gắn con + tổng | phụ huynh |
 | GET | `/public/classes/:qrcode` | `?schoolyearid=` (không bắt buộc); trang lớp cho phụ huynh qua mã QR (mục 9.10) | public |
+| GET | `/public/meta` | Năm học, tuần hiện tại, phân hiệu, khối cho tổng quan khi chưa đăng nhập (mục 9.13) | public |
+| GET | `/public/scores/periods` | `?schoolyearid=` (bắt buộc); như `/scores/periods` | public |
+| GET | `/public/scores/ranking` | Query như `/scores/ranking`; như `/scores/ranking`, không có `teacherid` | public |
 
 Giới hạn dữ liệu và mã lỗi của từng route được ghi trong note ở `src/router/*Router.ts`.
 
@@ -578,6 +597,7 @@ DB mới chạy `init.sql` (cập nhật 2026-11-16, chụp từ DB dev `QLHS`) 
 | Lượt chấm | 2271 lượt tuần 1–10 (2741 học sinh gắn kèm); chỉ nạp vào tuần chưa có lượt chấm; `pointdate` = ngày nhập kẹp trong tuần, không gắn `ruleid` | Dữ liệu chấm trên DB dev |
 | Quy chế thi đua | 41 mục (Nề nếp: 20 trừ, 5 cộng; Học tập: 12 trừ, 4 cộng); mục đã có (cùng phần, nội dung) thì bỏ qua | `init.sql` (mục 9.11) |
 | Tài khoản | 7: `admin` (mật khẩu `1`), 3 GVCN, 3 cờ đỏ + 7 phân công lớp | `init.sql`; danh sách ở [tai-khoan-dev.md](tai-khoan-dev.md) |
+| Phụ huynh | 50 phụ huynh **giả** (sinh tự động 2026-11-22) của 30 học sinh thật (3 học sinh đầu các lớp 6A1, 6A2, 6B1, 7A1, 7A2, 7B1, 8A1, 8B1, 9A1, 9B1): 20 em có cả cha và mẹ, 10 em có 1 người; 40 có tài khoản `ph.<mã HS>.cha` / `ph.<mã HS>.me`, mật khẩu `123456`, 10 chưa cấp tài khoản | `init.sql`; xem [tai-khoan-dev.md](tai-khoan-dev.md) |
 
 Dữ liệu học sinh là thông tin cá nhân thật: `init.sql` không đưa lên repo công khai, không dùng làm dữ liệu mẫu trong tài liệu ngoài vài ví dụ minh họa.
 
@@ -823,7 +843,7 @@ type PublicClassPage = {
 
 - Mặc định trả năm học đã bắt đầu gần nhất của lớp; ô chọn năm học lấy từ `schoolyears`, đổi năm gửi `?schoolyearid=`. Hiện tên lớp theo `schoolyear.classname` (lớp đã lên lớp có tên khác ở năm cũ).
 - Gợi ý hiển thị: tuần mới nhất nổi bật (Nề nếp, Học tập, Tổng, hạng X/Y), danh sách lượt cộng/trừ (`value < 0` đỏ, `> 0` xanh); `locked = false` ghi "Đang chấm, điểm có thể thay đổi".
-- Họ tên học sinh hiện ở cả lượt cộng và trừ (người dùng đã đồng ý công khai). API chỉ trả `name`, không id / mã / ngày sinh.
+- API vẫn trả họ tên học sinh gắn vào lượt chấm (`points[].students`, chỉ `name`, không id / mã / ngày sinh), nhưng **trang xem của phụ huynh không hiển thị tên** (người dùng yêu cầu 2026-11-22; trước đó hiện ở cả lượt cộng và trừ). Việc gắn học sinh vào lượt chấm khi chấm điểm vẫn như cũ. Phụ huynh đăng nhập xem lượt chấm của con qua `GET /auth/parent/points` (mục 9.12).
 - Lỗi: 400 `schoolyearid` sai; 404 "Không tìm thấy lớp" (mã sai định dạng / không tồn tại / đã bị đổi) hoặc "Lớp X không có kết quả thi đua ở năm học này" → trang báo không tìm thấy.
 - Có thể hiện ngày diễn ra cạnh từng lượt (`pointdate`, dạng `DD/MM`).
 
@@ -876,6 +896,64 @@ type Rule = {
 - Trang **Quy chế thi đua** (admin sửa được, user chỉ xem): bảng 2 nhóm Nề nếp / Học tập, cột nội dung, điểm (đỏ / xanh), trạng thái, số lượt đã dùng (`uses`). Nút xóa chỉ bật khi `uses = 0`, ngược lại hiện nút "Ngừng áp dụng" (`PUT { active: false }`) / "Áp dụng lại". Sửa mục không đổi điểm các lượt đã chấm, nên ghi chú điều này trong dialog sửa.
 - Sau khi thêm / sửa mục, làm mới `/rules`; sau khi chấm bằng mục, làm mới `/rules` nếu đang hiện `uses`.
 
+### 9.12. Phụ huynh (FE chưa làm)
+
+**Quản lý (admin):** `/parents`. Nên đặt trong trang chi tiết học sinh / lớp (lọc `?studentid=` hoặc `?classid=`) hoặc trang riêng.
+
+```ts
+type Parent = {
+  id: number; name: string; relation: "Cha" | "Mẹ"; studentid: number
+  username: string | null; hasaccount: boolean; active: boolean
+  created_at: string; updated_at: string
+  studentcode: string; studentname: string
+  classid: number; classname: string; gradeid: number; branchid: number; archivedyearid: number | null
+}
+```
+
+- Tạo: `POST /parents { name, relation, studentid }`, thêm `username` + `password` nếu cấp tài khoản (gửi một trong hai → 400).
+- Cấp tài khoản sau: `PUT { username, password }`; đặt lại mật khẩu: `PUT { password }`; xóa tài khoản đăng nhập: `PUT { username: null }`; khóa: `PUT { active: false }`.
+- Lỗi: 400 dữ liệu sai; 404 không có phụ huynh / học sinh; 409 trùng username hoặc học sinh đã có cha (mẹ). Xóa học sinh còn phụ huynh → 409.
+
+**Phụ huynh đăng nhập:** trang đăng nhập riêng (vd `/phu-huynh/dang-nhap`), lưu token **tách** khỏi token giáo viên.
+
+- `POST /auth/parent/login` → `{ token, parent }`; mã lỗi như `/auth/login` (400 / 401 / 403).
+- `GET /auth/parent/me` → `{ id, name, relation, username, studentid, studentcode, studentname, studentgender, studentbirthdate, classid, classname, numgrade, branchcode, branchname, teachername, archivedyearid, BaseQRCode }`. Xem kết quả thi đua: chuyển tới trang công khai `BaseQRCode` (mục 9.10).
+- `PUT /auth/parent/password { oldPassword, newPassword }`.
+- `GET /auth/parent/points?schoolyearid=` → lượt chấm có gắn con:
+
+```ts
+type ParentPoints = {
+  schoolyear: { id: number; name: string; startdate: string; enddate: string | null } | null  // mặc định năm học đã bắt đầu gần nhất; null = chưa có năm học
+  points: { id: number; weekid: number; numweek: number; locked: boolean
+            type: "Nề nếp" | "Học tập"; content: string; value: number   // điểm của cả lượt (có thể gắn nhiều học sinh)
+            pointdate: string; classid: number; classname: string }[]      // mới nhất trước; classname = tên lớp lúc chấm
+  summary: { count: number; plus: number; minus: number /* số dương */; total: number }
+}
+```
+
+  400 `schoolyearid` sai, 401, 404 không có năm học. Không có tên học sinh khác hay người nhập. `class.id` của `GET /public/classes/:qrcode` trùng `classid` trong `/auth/parent/me` (cùng lớp hiện tại của con); con đã chuyển lớp thì `points[]` có cả lượt ở lớp cũ, lọc theo `points[].classid` nếu chỉ muốn lớp đang xem.
+- Token phụ huynh gửi tới API khác → 401; 401 ở các route phụ huynh → về trang đăng nhập phụ huynh.
+
+### 9.13. Tổng quan công khai (chưa đăng nhập, FE chưa làm)
+
+Trang tổng quan khi chưa đăng nhập gọi các API dưới đây **không** gửi token (không xử lý 401). Sau khi đăng nhập vẫn dùng `/scores/*` như cũ; số liệu hai bên giống nhau vì dùng chung hàm.
+
+- `GET /public/meta` → dữ liệu khởi tạo:
+
+```ts
+type PublicMeta = {
+  schoolyears: { id: number; name: string; startdate: string; enddate: string | null; numweeks: number; semester2_week: number }[]  // mới nhất trước
+  currentweek: { id: number; schoolyearid: number; schoolyearname: string; numweek: number; startdate: string; enddate: string; locked: boolean } | null
+  branches: { id: number; name: string; code: string }[]
+  grades: { id: number; numgrade: number }[]
+}
+```
+
+- `GET /public/scores/periods?schoolyearid=` → như `/scores/periods` (`{ schoolyear, weeks[], months[], semesters[] }`), `schoolyear` có các cột như `schoolyears[]` ở trên.
+- `GET /public/scores/ranking?schoolyearid=&week=|month=|semester=|year=1&branchid=&gradeid=` → như `/scores/ranking` (`{ schoolyear, period, scores[] }`), mỗi dòng `scores[]` không có `teacherid`. Mã lỗi giống hệt: 400 query sai, 404 năm học / khoảng không có, 409 khoảng chưa bắt đầu.
+- Gợi ý: mặc định `schoolyearid = currentweek?.schoolyearid ?? schoolyears[0]?.id`, `week = currentweek?.numweek`; tuần hiện tại chưa có lượt chấm thì vẫn có điểm gốc. `currentweek.locked = false` → ghi "Đang chấm, điểm có thể thay đổi". Gặp 409 (tuần chưa bắt đầu) thì lùi về tuần trước.
+- Không có API công khai cho danh sách học sinh, nội dung lượt chấm, xuất Excel; trang từng lớp vẫn qua mã QR (mục 9.10).
+
 ## 10. Nhật ký thay đổi API cho FE
 
 | Ngày | Thay đổi | Mục |
@@ -890,3 +968,6 @@ type Rule = {
 | 2026-11-17 | Quy chế thi đua: API `/rules` (GET cho admin, user; POST / PUT / DELETE chỉ admin), `Rule` kèm `uses`; 41 mục mặc định. Chạy lại `cscript/init.sql` để tạo bảng `rule` | 9.11 |
 | 2026-11-17 | Chấm theo mục quy chế: `POST` / `PUT /points` nhận `ruleid` (trường thiếu lấy theo mục, PUT `ruleid: null` = bỏ liên kết), `GET /points?ruleid=`; lượt chấm trả thêm `ruleid`, `rulecontent`. Không đổi body cũ (nhập tự do vẫn như trước) | 9.4, 9.11 |
 | 2026-11-17 | Ngày diễn ra và giờ nhập: lượt chấm có `pointdate` (POST / PUT nhận `pointdate`, phải trong tuần, mặc định hôm nay kẹp vào tuần), `entereddate` + `enteredtime` (giờ Việt Nam); `created_at` / `updated_at` của lượt chấm thành timestamp ISO (trước là `YYYY-MM-DD`); `/points` sắp theo `pointdate`; trang công khai `points[].pointdate` | 9.4, 9.10 |
+| 2026-11-22 | Phụ huynh: bảng `parent`, API `/parents` (admin), đăng nhập riêng `/auth/parent/login`, `/auth/parent/me`, `/auth/parent/password`; xóa học sinh còn phụ huynh → 409. Chạy lại `cscript/init.sql` để tạo bảng `parent` | 3, 9.12 |
+| 2026-11-22 | Tổng quan công khai không cần token: `GET /public/meta`, `/public/scores/periods`, `/public/scores/ranking` (như `/scores/*`, bỏ `teacherid`) | 9.13 |
+| 2026-11-22 | Phụ huynh xem lượt chấm có gắn con: `GET /auth/parent/points?schoolyearid=` → `{ schoolyear, points[], summary }` | 9.12 |

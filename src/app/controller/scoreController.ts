@@ -1,5 +1,5 @@
 import { sendSuccess, sendError, sendFile, handleError, parseId, parseIntInRange } from "../utils/http";
-import { fetchWeeklyScore, fetchSummaryScore, fetchClassScore, fetchRanking, fetchRankingPeriods, fetchPublicClassScore, RankingPeriod } from "../service/scoreService";
+import { fetchWeeklyScore, fetchSummaryScore, fetchClassScore, fetchRanking, fetchRankingPeriods, fetchPublicClassScore, fetchPublicMeta, fetchPublicRankingPeriods, fetchPublicRanking, RankingPeriod } from "../service/scoreService";
 import { buildScoreWorkbook } from "../service/scoreExportService";
 
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -136,6 +136,38 @@ export const getPublicClassScore = async (req: any, res: any) => {
             if (!schoolyearid) return sendError(res, 400, 'schoolyearid không hợp lệ');
         }
         return sendSuccess(res, await fetchPublicClassScore(qrcode, schoolyearid));
+    } catch (err) {
+        return handleError(res, err);
+    }
+}
+
+// ---------- Trang tổng quan công khai (không đăng nhập) ----------
+
+export const getPublicMeta = async (req: any, res: any) => {
+    try {
+        return sendSuccess(res, await fetchPublicMeta());
+    } catch (err) {
+        return handleError(res, err);
+    }
+}
+
+// Query: ?schoolyearid= (bắt buộc)
+export const getPublicRankingPeriods = async (req: any, res: any) => {
+    try {
+        const schoolyearid = parseId(req.query.schoolyearid);
+        if (!schoolyearid) return sendError(res, 400, 'schoolyearid không hợp lệ');
+        return sendSuccess(res, await fetchPublicRankingPeriods(schoolyearid));
+    } catch (err) {
+        return handleError(res, err);
+    }
+}
+
+// Query như /scores/ranking
+export const getPublicRanking = async (req: any, res: any) => {
+    try {
+        const { schoolyearid, period, filter, error } = readRankingQuery(req.query);
+        if (error) return sendError(res, 400, error);
+        return sendSuccess(res, await fetchPublicRanking(schoolyearid!, period!, filter));
     } catch (err) {
         return handleError(res, err);
     }

@@ -6,6 +6,20 @@ const SALT_ROUNDS = 10;
 
 export type AuthPayload = { id: number, role: string };
 
+// Role trong token của phụ huynh (bảng parent), khác role 'admin' / 'user' của bảng account.
+// id trong token là parent.id hoặc account.id tùy role, nên middleware phải kiểm tra role trước khi tra DB
+export const PARENT_ROLE = 'parent';
+
+// username varchar(50): chữ, số, dấu . _ -; lưu chữ thường (dùng cho account và parent)
+const USERNAME_RE = /^[a-z0-9._-]{3,50}$/;
+export const normalizeUsername = (value: any) => typeof value === 'string' ? value.trim().toLowerCase() : '';
+export const isValidUsername = (value: string) => USERNAME_RE.test(value);
+export const USERNAME_MESSAGE = 'Tên đăng nhập 3–50 ký tự: chữ, số, dấu . _ -';
+
+// bcrypt chỉ dùng 72 byte đầu nên giới hạn 72 byte
+export const isValidPassword = (value: any) => typeof value === 'string' && value.length >= 6 && Buffer.byteLength(value, 'utf8') <= 72;
+export const PASSWORD_MESSAGE = 'Mật khẩu từ 6 ký tự, tối đa 72 byte';
+
 export const hashPassword = (password: string) => bcrypt.hash(password, SALT_ROUNDS);
 
 export const comparePassword = (password: string, hash: string) => bcrypt.compare(password, hash);

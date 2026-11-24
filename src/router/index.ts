@@ -11,6 +11,7 @@ import authRouter from './authRouter';
 import accountRouter from './accountRouter';
 import publicRouter from './publicRouter';
 import ruleRouter from './ruleRouter';
+import parentRouter from './parentRouter';
 
 const express = require('express');
 const router = express.Router();
@@ -31,6 +32,7 @@ router.use('/rules', ruleRouter);
 router.use('/scores', scoreRouter);
 router.use('/auth', authRouter);
 router.use('/accounts', accountRouter);
+router.use('/parents', parentRouter);
 router.use('/public', publicRouter);
 
 export default router;

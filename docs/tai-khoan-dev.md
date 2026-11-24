@@ -33,6 +33,24 @@ Chi tiết quyền: [Ai_rules/security.md](../Ai_rules/security.md).
 - Từ 2026-11-16, [cscript/init.sql](../cscript/init.sql) tạo đủ các tài khoản trong bảng trên kèm phân công lớp cờ đỏ (username đã có thì bỏ qua), nên DB mới chạy `init.sql` đăng nhập được ngay.
 - Tài khoản tạo thêm qua trang **Tài khoản** không tự cập nhật vào file này; nhớ ghi thêm nếu muốn tra cứu.
 
+## Phụ huynh (dữ liệu giả)
+
+Đăng nhập ở trang phụ huynh (`POST /auth/parent/login`), **không** dùng trang đăng nhập giáo viên. **Mật khẩu: `123456`.**
+
+- 50 phụ huynh giả của 30 học sinh (3 học sinh đầu mỗi lớp 6A1, 6A2, 6B1, 7A1, 7A2, 7B1, 8A1, 8B1, 9A1, 9B1), nạp từ [cscript/init.sql](../cscript/init.sql) (chỉ thêm cái chưa có).
+- Tên đăng nhập: `ph.<mã học sinh>.cha` hoặc `ph.<mã học sinh>.me`, ví dụ `ph.2609138407.cha`, `ph.2609138407.me` (con học 6A1).
+- 40 phụ huynh có tài khoản; 10 chưa cấp (dòng thứ 5, 10, 15... trong `init_parent`, `username` null), dùng để thử cấp tài khoản qua `PUT /parents/:id`.
+
+Xem danh sách:
+
+```sql
+SELECT p.username, p.relation, p.name, s.code, s.name AS con, cv.name AS lop, p.active
+FROM parent p
+JOIN student s ON s.id = p.studentid
+JOIN class_view cv ON cv.id = s.classid
+ORDER BY cv.numgrade, cv.branchcode, cv.seq, s.id, p.relation;
+```
+
 ## Xem lại / đặt lại mật khẩu
 
 Xem danh sách tài khoản hiện có trong DB:

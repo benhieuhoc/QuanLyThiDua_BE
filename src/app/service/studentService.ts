@@ -102,6 +102,11 @@ export const deleteStudent = async (id: number) => {
     if (linkResult.rows[0].total > 0) {
         throw new HttpError(409, `Học sinh ${student.name} đã có trong ${linkResult.rows[0].total} lượt chấm điểm, không thể xóa`);
     }
+    // Không để CASCADE xóa phụ huynh (kèm tài khoản đăng nhập) của học sinh; đếm thẳng bảng parent để tránh import vòng với parentService
+    const parentResult = await pool.query(`SELECT COUNT(*)::int AS total FROM parent WHERE studentid = $1`, [id]);
+    if (parentResult.rows[0].total > 0) {
+        throw new HttpError(409, `Học sinh ${student.name} còn ${parentResult.rows[0].total} phụ huynh, hãy xóa phụ huynh trước`);
+    }
 
     await pool.query(`DELETE FROM student WHERE id = $1`, [id]);
     return student;
