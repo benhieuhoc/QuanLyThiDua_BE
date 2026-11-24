@@ -12,6 +12,8 @@ import accountRouter from './accountRouter';
 import publicRouter from './publicRouter';
 import ruleRouter from './ruleRouter';
 import parentRouter from './parentRouter';
+import folderRouter from './folderRouter';
+import fileRouter from './fileRouter';
 
 const express = require('express');
 const router = express.Router();
@@ -33,6 +35,8 @@ router.use('/scores', scoreRouter);
 router.use('/auth', authRouter);
 router.use('/accounts', accountRouter);
 router.use('/parents', parentRouter);
+router.use('/folders', folderRouter);
+router.use('/files', fileRouter);
 router.use('/public', publicRouter);
 
 export default router;

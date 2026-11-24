@@ -49,8 +49,17 @@
 - `rule` (quy chế thi đua): `type` (`'Nề nếp'`/`'Học tập'`, CHECK như `point.type`), `content` (≤255), `value` ≠ 0 (điểm cho 1 lần / 1 học sinh), `active` (false = ngừng áp dụng), unique `rule_unique (type, content)`. Khai báo **trước** `point` vì `point` có khóa ngoại tới nó.
 - `point.ruleid`: mục quy chế đã chọn, `fk_point_rule` `ON DELETE SET NULL`, index `point_rule_idx`; null = nhập tự do. Lượt chấm vẫn lưu `type`/`content`/`value` riêng, không đọc điểm từ `rule`.
 - `point.pointdate`: ngày diễn ra (`date NOT NULL DEFAULT CURRENT_DATE`), phải nằm trong `week.startdate..enddate` (kiểm tra ở service). DB cũ được điền bằng `created_at::date` kẹp vào tuần.
-- `point.created_at` / `updated_at` là `timestamptz` (thời điểm nhập, hiển thị giờ); **chỉ bảng `point`**, các bảng khác vẫn `date`. Đọc giờ Việt Nam bằng `AT TIME ZONE 'Asia/Ho_Chi_Minh'`; `pg` trả `timestamptz` thành `Date` (JSON ISO UTC).
+- `point.created_at` / `updated_at` là `timestamptz` (thời điểm nhập, hiển thị giờ); **chỉ bảng `point`, `folder`, `file`**, các bảng khác vẫn `date`. Đọc giờ Việt Nam bằng `AT TIME ZONE 'Asia/Ho_Chi_Minh'`; `pg` trả `timestamptz` thành `Date` (JSON ISO UTC).
 - Không lưu điểm tuần; đọc điểm luôn dùng `score_view`.
+
+## Kho tài liệu (thư mục / file, API `/folders`, `/files`)
+
+- `folder` (`name` ≤ 255, `parentid` tự tham chiếu, null = gốc, `accountid` người tạo `ON DELETE SET NULL`): cây thư mục. `folder_name_check`: tên không rỗng, không chứa `/` hoặc `\`; `folder_parent_check`: không làm cha của chính mình. Unique index `folder_name_unique (COALESCE(parentid, 0), lower(name))`: tên không trùng (không phân biệt hoa thường) trong cùng thư mục cha, gốc tính là 0.
+- `file` (`folderid` null = gốc, `name` tên hiển thị kèm đuôi, `storagekey` unique, `mimetype`, `size` byte `integer` ≥ 0, `accountid` người tải lên `ON DELETE SET NULL`): chỉ lưu metadata, nội dung lưu ngoài DB theo `storagekey`. Unique index `file_name_unique (COALESCE(folderid, 0), lower(name))`, `file_name_check` như thư mục.
+- `storagekey` do server sinh (uuid), **không** ghép từ tên người dùng đặt; đường dẫn file thật = `public/files/<storagekey>` ở gốc source (`storagePath` trong `src/app/utils/storage.ts`).
+- FK `fk_folder_folder`, `fk_file_folder` **không CASCADE** (NO ACTION): xóa thư mục còn con / file bị chặn. Xóa cả cây: trong 1 transaction, CTE đệ quy gom id cây con → lấy `storagekey` các file → `DELETE FROM file WHERE folderid = ANY($1)` → `DELETE FROM folder WHERE id = ANY($1)` (1 câu cho cả cây, NO ACTION kiểm tra cuối câu lệnh) → xóa file vật lý sau khi COMMIT.
+- Chuyển thư mục: service phải chặn đưa vào chính nó hoặc thư mục con của nó (CTE đệ quy), DB chỉ chặn trường hợp `parentid = id`.
+- Trùng tên vi phạm unique index trả lỗi 23505 (map 409 theo tên `folder_name_unique` / `file_name_unique`).
 
 ## Dữ liệu khởi tạo
 

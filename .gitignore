@@ -3,3 +3,6 @@ dist/
 .env
 .env.*
 *.log
+
+# File tài liệu người dùng tải lên (kho của /files)
+public/files/

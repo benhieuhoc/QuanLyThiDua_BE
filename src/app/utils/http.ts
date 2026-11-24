@@ -50,6 +50,13 @@ export const parseId = (value: any) => {
     return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+// id có thể null (vd thư mục cha, null = gốc): null / '' / 'null' → null (multipart chỉ gửi được chuỗi),
+// id hợp lệ → số, sai → undefined
+export const parseNullableId = (value: any) => {
+    if (value === null || value === '' || value === 'null') return null;
+    return parseId(value) ?? undefined;
+}
+
 // Trả về số nguyên trong [min, max] hoặc null nếu không hợp lệ (không nhận chuỗi rỗng/boolean)
 export const parseIntInRange = (value: any, min: number, max: number) => {
     if (typeof value !== 'number' && typeof value !== 'string') return null;

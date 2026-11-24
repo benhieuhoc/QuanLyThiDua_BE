@@ -30,7 +30,7 @@ Database chỉ có một file `cscript/init.sql`: phần 1 tạo bảng / view, 
 
 ## Cấu hình
 
-`.env` (load qua `dotenv`) gồm `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_NAME`, `DB_PORT` (mặc định 5432), `PORT` (mặc định 3001), `JWT_SECRET` (bắt buộc, không có giá trị mặc định) và `JWT_EXPIRES_IN` (mặc định `30m`), dùng cho đăng nhập `/auth`.
+`.env` (load qua `dotenv`) gồm `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_NAME`, `DB_PORT` (mặc định 5432), `PORT` (mặc định 3001), `JWT_SECRET` (bắt buộc, không có giá trị mặc định) và `JWT_EXPIRES_IN` (mặc định `30m`), dùng cho đăng nhập `/auth`; `FILE_MAX_SIZE_MB` (mặc định 20) giới hạn dung lượng 1 file tải lên `/files`.
 
 ## Kiến trúc
 
@@ -42,7 +42,7 @@ Luồng: `src/router/<entity>Router.ts` → `src/app/controller/<entity>Controll
 
 ### Mô hình dữ liệu (`cscript/init.sql`)
 
-Một trường có nhiều phân hiệu (`branch`, mã 1 chữ cái A/B). `teacher` thuộc một phân hiệu; `class` = (`grade`, `branch`, `seq`) với tối đa một giáo viên chủ nhiệm cùng phân hiệu (có thể null); `student` thuộc một lớp (chỉ là dữ liệu; riêng học sinh cờ đỏ được cấp tài khoản). `account` có 2 role: `admin` (GV quản lý nề nếp) và `user` (GVCN gắn `teacherid` hoặc cờ đỏ gắn `studentid`); `account_class` là các lớp cờ đỏ được phân công chấm; `point.accountid` ghi người nhập. `parent` là phụ huynh (cha / mẹ) của 1 học sinh, tài khoản đăng nhập tùy chọn, tách khỏi `account` (token role `parent`). Tên lớp như `6A1` không lưu trong bảng mà tính trong view `class_view`. `school_year` sinh các `week` (mỗi tuần có điểm gốc Nề nếp/Học tập và cờ khóa); `point` là lượt cộng/trừ nhập tự do của một lớp trong một tuần (`type` là `'Nề nếp'` hoặc `'Học tập'`); điểm tuần tính trong view `score_view`. `init.sql` khởi tạo sẵn 4 khối (6–9) và 2 phân hiệu (A, B). Lớp khối 9 được lưu trữ (`class.archivedyearid`) khi lên lớp sang năm học mới; `class_year` giữ tên lớp của năm cũ. `class.qrcode` là mã ngẫu nhiên của trang lớp công khai cho phụ huynh (`/LopHoc/<qrcode>`, `GET /public/classes/:qrcode`).
+Một trường có nhiều phân hiệu (`branch`, mã 1 chữ cái A/B). `teacher` thuộc một phân hiệu; `class` = (`grade`, `branch`, `seq`) với tối đa một giáo viên chủ nhiệm cùng phân hiệu (có thể null); `student` thuộc một lớp (chỉ là dữ liệu; riêng học sinh cờ đỏ được cấp tài khoản). `account` có 2 role: `admin` (GV quản lý nề nếp) và `user` (GVCN gắn `teacherid` hoặc cờ đỏ gắn `studentid`); `account_class` là các lớp cờ đỏ được phân công chấm; `point.accountid` ghi người nhập. `parent` là phụ huynh (cha / mẹ) của 1 học sinh, tài khoản đăng nhập tùy chọn, tách khỏi `account` (token role `parent`). Tên lớp như `6A1` không lưu trong bảng mà tính trong view `class_view`. `school_year` sinh các `week` (mỗi tuần có điểm gốc Nề nếp/Học tập và cờ khóa); `point` là lượt cộng/trừ nhập tự do của một lớp trong một tuần (`type` là `'Nề nếp'` hoặc `'Học tập'`); điểm tuần tính trong view `score_view`. `init.sql` khởi tạo sẵn 4 khối (6–9) và 2 phân hiệu (A, B). Lớp khối 9 được lưu trữ (`class.archivedyearid`) khi lên lớp sang năm học mới; `class_year` giữ tên lớp của năm cũ. `class.qrcode` là mã ngẫu nhiên của trang lớp công khai cho phụ huynh (`/LopHoc/<qrcode>`, `GET /public/classes/:qrcode`). Kho tài liệu: `folder` (cây thư mục, `parentid` null = gốc) chứa `file` (chỉ metadata, nội dung lưu ở `public/files/<storagekey>`, thư mục này trong `.gitignore`), API `/folders`, `/files` (upload bằng `multer`).
 
 ## Lỗi đã biết trong code hiện tại
 

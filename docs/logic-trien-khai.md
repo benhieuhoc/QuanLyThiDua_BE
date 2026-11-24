@@ -441,6 +441,16 @@ Base URL khi chạy local: `http://localhost:3001` (theo `PORT` trong `.env`).
 | GET | `/public/meta` | Năm học, tuần hiện tại, phân hiệu, khối cho tổng quan khi chưa đăng nhập (mục 9.13) | public |
 | GET | `/public/scores/periods` | `?schoolyearid=` (bắt buộc); như `/scores/periods` | public |
 | GET | `/public/scores/ranking` | Query như `/scores/ranking`; như `/scores/ranking`, không có `teacherid` | public |
+| GET | `/folders` | Nội dung thư mục gốc `{ folder: null, path, folders[], files[] }` (mục 9.14) | admin, user |
+| GET | `/folders/:id` | Nội dung thư mục, `path` từ gốc | admin, user |
+| POST | `/folders` | `{ name, parentid? }` | admin |
+| PUT | `/folders/:id` | `{ name?, parentid? (null = gốc) }` đổi tên / chuyển | admin |
+| DELETE | `/folders/:id` | `?recursive=true` để xóa cả nội dung | admin |
+| GET | `/files/:id` | Metadata file | admin, user |
+| GET | `/files/:id/download` | Nội dung file (attachment) | admin, user |
+| POST | `/files` | multipart: `file`, `folderid?`, `name?` | admin |
+| PUT | `/files/:id` | JSON `{ name?, folderid? }` hoặc multipart thêm `file` (thay nội dung) | admin |
+| DELETE | `/files/:id` | | admin |
 
 Giới hạn dữ liệu và mã lỗi của từng route được ghi trong note ở `src/router/*Router.ts`.
 
@@ -954,6 +964,26 @@ type PublicMeta = {
 - Gợi ý: mặc định `schoolyearid = currentweek?.schoolyearid ?? schoolyears[0]?.id`, `week = currentweek?.numweek`; tuần hiện tại chưa có lượt chấm thì vẫn có điểm gốc. `currentweek.locked = false` → ghi "Đang chấm, điểm có thể thay đổi". Gặp 409 (tuần chưa bắt đầu) thì lùi về tuần trước.
 - Không có API công khai cho danh sách học sinh, nội dung lượt chấm, xuất Excel; trang từng lớp vẫn qua mã QR (mục 9.10).
 
+### 9.14. Kho tài liệu (`/folders`, `/files`, FE chưa làm)
+
+Cây thư mục + file. Mọi tài khoản (admin, GVCN, cờ đỏ) xem và tải được; chỉ admin tạo / sửa / xóa. Phụ huynh và trang công khai không dùng được.
+
+```ts
+type Folder = { id: number; name: string; parentid: number | null; accountid: number | null; accountusername: string | null
+                numfolders: number; numfiles: number; created_at: string; updated_at: string }   // created_at / updated_at: ISO có giờ
+type FileItem = { id: number; folderid: number | null; name: string; mimetype: string; size: number   // size: byte
+                  accountid: number | null; accountusername: string | null; created_at: string; updated_at: string }
+type FolderContents = { folder: Folder | null; path: { id: number; name: string }[]; folders: Folder[]; files: FileItem[] }
+```
+
+- Mở thư mục: `GET /folders` (gốc: `folder: null`, `path: []`) hoặc `GET /folders/:id`; `path` là breadcrumb từ gốc tới thư mục đang mở (gồm chính nó). `folders`, `files` sắp theo tên.
+- Tạo thư mục: `POST /folders { name, parentid? }`. Tên ≤ 255 ký tự, không chứa `/` hoặc `\`; trùng tên trong cùng thư mục (không phân biệt hoa thường) → 409.
+- Đổi tên / chuyển: `PUT /folders/:id { name?, parentid? }` (`parentid: null` = về gốc); chuyển vào chính nó hoặc thư mục con của nó → 409.
+- Xóa thư mục: `DELETE /folders/:id` chỉ xóa được thư mục trống (409 kèm số thư mục con / file). Hỏi xác nhận rồi gọi lại với `?recursive=true` để xóa cả bên trong; response có thêm `deletedfolders`, `deletedfiles`.
+- Tải lên: `POST /files` dạng `multipart/form-data` (dùng `FormData`, **không** tự đặt header `Content-Type`): `file` (1 file, mặc định ≤ 20MB, quá → 413), `folderid` (bỏ = gốc), `name` (bỏ = tên file gốc). Nhiều file thì gọi lần lượt từng file. Trùng tên → 409 (có thể hỏi người dùng tên khác rồi gửi kèm `name`).
+- Sửa file: `PUT /files/:id` JSON `{ name?, folderid? }` để đổi tên / chuyển; gửi multipart có `file` để thay nội dung (giữ tên cũ nếu không gửi `name`).
+- Tải về: `GET /files/:id/download` kèm token, gọi bằng `fetch` → `blob()` rồi tạo link tải (thẻ `<a href>` thường không gửi được header `Authorization`). Tên file lấy từ `Content-Disposition` (`filename*` UTF-8, đã expose qua CORS). Lỗi trả JSON (kiểm tra `response.ok` trước khi đọc blob).
+
 ## 10. Nhật ký thay đổi API cho FE
 
 | Ngày | Thay đổi | Mục |
@@ -971,3 +1001,4 @@ type PublicMeta = {
 | 2026-11-22 | Phụ huynh: bảng `parent`, API `/parents` (admin), đăng nhập riêng `/auth/parent/login`, `/auth/parent/me`, `/auth/parent/password`; xóa học sinh còn phụ huynh → 409. Chạy lại `cscript/init.sql` để tạo bảng `parent` | 3, 9.12 |
 | 2026-11-22 | Tổng quan công khai không cần token: `GET /public/meta`, `/public/scores/periods`, `/public/scores/ranking` (như `/scores/*`, bỏ `teacherid`) | 9.13 |
 | 2026-11-22 | Phụ huynh xem lượt chấm có gắn con: `GET /auth/parent/points?schoolyearid=` → `{ schoolyear, points[], summary }` | 9.12 |
+| 2026-11-24 | Kho tài liệu: `/folders` (cây thư mục), `/files` (tải lên multipart, tải về, đổi tên / chuyển / thay nội dung); đọc admin + user, ghi admin. Chạy lại `cscript/init.sql` để tạo bảng `folder`, `file` | 9.14 |

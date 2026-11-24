@@ -57,6 +57,14 @@ Project chỉ có **2 role** (bảng `account`): `admin` và `user`. Role `user`
 - `GET /public/meta`, `/public/scores/periods`, `/public/scores/ranking` (trang tổng quan khi chưa đăng nhập, người dùng yêu cầu 2026-11-22): chỉ năm học / tuần / phân hiệu / khối và điểm, hạng tổng hợp theo lớp (kèm tên GVCN). **Không** trả học sinh, nội dung lượt chấm, tài khoản, `teacherid`. Bọc hàm service nội bộ thì phải lọc lại cột trước khi trả.
 - Thêm dữ liệu vào route public phải liệt kê cột cụ thể, không `SELECT *`.
 
+## Kho tài liệu (`/folders`, `/files`)
+
+- Đọc danh sách, metadata và tải file: admin, user (`authenticate`). Tạo / sửa / xóa thư mục và file: chỉ `admin`. Phụ huynh (token `parent`) và route công khai không truy cập được.
+- Upload: `authorize('admin')` phải đứng **trước** `uploadFile` để người không có quyền không ghi được file lên đĩa. Giới hạn dung lượng `FILE_MAX_SIZE_MB`, 1 file / request.
+- Tên file trên đĩa là `storagekey` (uuid do server sinh), không dùng tên người dùng gửi; `storagePath` từ chối mọi key không phải uuid (chống path traversal). Không trả `storagekey` cho client.
+- `public/files` **không** được mount `express.static`: nội dung chỉ tải qua `GET /files/:id/download` (có đăng nhập), luôn `Content-Disposition: attachment` + `X-Content-Type-Options: nosniff` để file HTML / SVG / JS tải lên không chạy trên domain API (XSS).
+- `public/files` nằm trong `.gitignore`, không commit file người dùng tải lên.
+
 ## Khác
 
 - CORS: chỉ cho phép origin cụ thể. Danh sách `allowedOrigins` trong `src/index.ts` đang có `'*'`, cần bỏ khi lên production.
